@@ -72,22 +72,211 @@ dat_files <- list.files('data',
 climate <- read_delim(dat_files[1], delim = ';')
 
 hydro <- read_delim('data/hydro.txt', delim = ';')
+
+geol <- read_delim('data/geol.txt', delim = ';')
+
+soil <- read_delim('data/soil.txt', delim = ';')
+
+topo <- read_delim('data/topo.txt', delim = ';')
+
+vege <- read_delim('data/vege.txt', delim = ';')
+
+
 ```
 
 ## Initial data viz
+### Baseflow
+```{r}
+ggplot(hydro, aes(x = baseflow_index, y = q95))+
+  geom_point()
+```
+
+### Climate Controls
+```{r}
+cq <- inner_join(climate,hydro)
+
+names(cq)
+
+ggplot(cq, aes(x = p_mean, y = q95))+
+  geom_point()+
+  geom_smooth(method = "lm", se = F)
+
+p_mean_mod <- lm(q95 ~ p_mean, data = cq)
+
+summary(p_mean_mod)
+
+```
+p_mean strongly controls q95
+
+Average precip (p mean) controls 70% of the variation in q95, where every 1 mm/day increase in average precip increased the q95 by 2.95 mm/d
+
+# Assignment
+Baseflow doesnt strongly control q95 in a predicatble way
+```{r}
+#library(GGally)
+
+png(filename = "bigclimateplot.png", width = 10, height = 8, units = "in", res = 300)
+cq_rr %>% 
+  select_if(is.numeric) %>% 
+  ggpairs()
+dev.off()
+```
+
+
+
+
+```{r}
+long_cq <- cq %>% 
+  select_if(is.numeric) %>% 
+  pivot_longer(cols = p_mean:low_prec_dur,
+               values_to = "value",
+               names_to = "driver")
+```
+
+## What are three controls on average runoff ratio? 
+look at potential controls and only report the ones with high r-squared. What we find here will be the basis of our variables when trying to predict mean runoff
+
+```{r}
+cq_rr <- inner_join(climate,hydro %>% 
+                   select(gauge_id, runoff_ratio))
+```
+
+```{r}
+ggplot(long_cq, aes(value, q95))+
+  geom_point()+
+  facet_grid(~driver, scales = "free")
+```
 
 ```{r}
 
+ggplot(cq, aes(x = high_prec_freq, y = runoff_ratio))+
+  geom_point()+
+  geom_smooth(method = "lm", se = F)
+
 ```
 
-# Assignment
+```{r}
+high_freq_runoffmod <- lm(runoff_ratio ~ high_prec_freq, data = cq)
 
-## What are three controls on average runoff ratio? 
+summary(high_freq_runoffmod)
+
+```
+###High Precipitation frequency has an influence over runoff ration with an r-quared of .46 and a change of
+
+```{r}
+
+ggplot(cq, aes(x = low_prec_freq, y = runoff_ratio))+
+  geom_point()+
+  geom_smooth(method = "lm", se = F)
+
+```
+
+```{r}
+low_freq_runoffmod <- lm(runoff_ratio ~ low_prec_freq, data = cq)
+
+summary(low_freq_runoffmod)
+
+```
+
+  scale_x_continuous(trans = "log")+
+  scale_y_continuous(trans = "log")+
+
+```{r}
+
+ggplot(cq, aes(x = q_mean, y = runoff_ratio))+
+  geom_point()+
+  geom_smooth(method = "lm", se = F)
+
+```
+
+```{r}
+q_mean_runoffmod <- lm(runoff_ratio ~ q_mean, data = cq)
+
+summary(q_mean_runoffmod)
+
+```
+
+
 
 ## What are three controls on baseflow_index? 
+frac_snow
+p_seasonality
+high_prec_freq
+
+```{r}
+gh <- inner_join(geol,hydro %>% 
+                   select(gauge_id, baseflow_index))
+
+names(gh)
+```
+
+```{r}
+sh <- inner_join(soil,hydro %>% 
+                   select(gauge_id, baseflow_index))
+
+names(sh)
+```
+
+```{r}
+th <- inner_join(soil,hydro %>% 
+                   select(gauge_id, baseflow_index))
+
+names(th)
+```
+
+```{r}
+vh <- inner_join(soil,hydro %>% 
+                   select(gauge_id, baseflow_index))
+
+names(vh)
+```
+
+```{r}
+#library(GGally)
+
+png(filename = "bigbaseflowplot.png", width = 10, height = 8, units = "in", res = 300)
+gh %>% 
+  select_if(is.numeric) %>% 
+  ggpairs()
+dev.off()
+```
+
+
+```{r}
+#library(GGally)
+
+png(filename = "bigbaseflowplot.png", width = 10, height = 8, units = "in", res = 300)
+sh %>% 
+  select_if(is.numeric) %>% 
+  ggpairs()
+dev.off()
+```
+
+
+```{r}
+#library(GGally)
+
+png(filename = "bigbaseflowplot.png", width = 10, height = 8, units = "in", res = 300)
+gh %>% 
+  select_if(is.numeric) %>% 
+  ggpairs()
+dev.off()
+```
+
+
+
+seasonality
+aridity
+
+#baseflow
+frac_snow
+high_prec_freq
+
 
 ## What are three controls on mean flow? 
-
+aridity
+pet_mean
+soil_conductivity
 
 
 
