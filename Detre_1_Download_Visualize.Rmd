@@ -1,0 +1,378 @@
+---
+title: "Downloading and Visualizing Camels Data"
+author: "Matthew Ross"
+date: "2024-04-22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Data Acquisition
+
+For this assignment we are going to be playing with annually aggregated metrics of USGS flow data from the [CAMELS](https://ral.ucar.edu/solutions/products/camels) dataset. This dataset has sparked a revolution in machine learning in hydrology.
+
+```{r}
+if(!file.exists('data')){
+  dir.create('data')
+}
+
+#climate means
+download.file('https://gdex.ucar.edu/dataset/camels/file/camels_clim.txt',
+              'data/climate.txt')
+
+#geologic controls
+download.file('https://gdex.ucar.edu/dataset/camels/file/camels_geol.txt',
+              'data/geol.txt')
+
+# soil data
+download.file('https://gdex.ucar.edu/dataset/camels/file/camels_soil.txt',
+              'data/soil.txt')
+
+# topo data
+download.file('https://gdex.ucar.edu/dataset/camels/file/camels_topo.txt',
+              'data/topo.txt')
+
+
+#vege 
+
+download.file('https://gdex.ucar.edu/dataset/camels/file/camels_vege.txt',
+              'data/vege.txt')
+
+
+#hydro (response variable)
+
+download.file('https://gdex.ucar.edu/dataset/camels/file/camels_hydro.txt',
+              'data/hydro.txt')
+
+
+# Variable definitions
+download.file('https://gdex.ucar.edu/dataset/camels/file/camels_attributes_v2.0.pdf',
+              'data/meta.pdf')
+
+```
+
+## Data org
+
+```{r}
+dat_files <- list.files('data',
+                        full.names = T)
+
+
+
+climate <- read_delim(dat_files[1], delim = ';')
+
+hydro <- read_delim('data/hydro.txt', delim = ';')
+```
+
+## Initial data viz
+
+Baseflow
+
+```{r}
+# this is what Matt would do to start w/ climate data
+
+# predicting high flow but not max flow
+
+ggplot(hydro, aes(x=baseflow_index, y = q95)) +
+  geom_point()
+# base flow may predict 95th quantiles?
+# in this dataset,low baseflow = low long term runoff
+# this variable doesn't look like it's highly predictive...
+
+```
+
+Hydroclimate
+
+```{r}
+
+cq <- inner_join(climate, hydro %>%
+  select(gauge_id, q95)) # joining by gauge ID
+
+names(cq)
+
+ggplot(cq, aes(x = p_mean, y = q95))+
+  geom_point() +
+geom_smooth(method = "lm", se = F)
+# there is agreement here!
+# P_means strongly controls q95
+
+# we want to get a number to describe this relationship
+p_mean_mod <- lm(q95 ~ p_mean, data = cq)
+summary(p_mean_mod)
+
+# the average precip (p_mean) controls 71% of the variation in q95, where every 1 mm/day increase in longterm average precip increases the q95 by 2.95 mm/day. This is likely bc more water means this landscape gets wetter etc...
+```
+
+# Assignment
+
+look at potential controls and only report those with a relatively high R squared - like higher than 0.3. what we find here will help us with our predictions later.
+
+```{r}
+# reading in rest of the data that I anticipate using:
+
+geol <- read_delim('data/geol.txt', delim = ';')
+soils <- read_delim('data/soil.txt', delim = ';')
+topo <- read_delim('data/topo.txt', delim = ';')
+vege <- read_delim('data/vege.txt', delim = ';')
+```
+
+## What are three controls on average runoff ratio?
+
+```{r}
+# prepping datasets to work with
+
+cq_runoff <- inner_join(climate, hydro %>%
+  select(gauge_id, runoff_ratio))
+
+names(cq_runoff)
+
+topo_runoff <- inner_join(topo, hydro %>%
+  select(gauge_id, runoff_ratio))
+
+names(topo_runoff)
+
+
+clim_runoff <- inner_join(climate, hydro %>%
+  select(gauge_id, runoff_ratio))
+
+names(clim_runoff)
+```
+
+aridity
+
+```{r}
+ggplot(cq_runoff, aes(x = aridity, y = runoff_ratio))+
+  geom_point() +
+geom_smooth(method = "lm", se = F)
+
+# we want to get a number to describe this relationship
+aridity_mod <- lm(runoff_ratio ~ aridity, data = cq_runoff)
+summary(aridity_mod)
+```
+
+Aridity controls 32% of the variation in runoff_ratio, where every increase of 1 in aridity decreases runoff_ratio by -0.217.
+
+slope_mean
+
+```{r}
+ggplot(topo_runoff, aes(x = slope_mean, y = runoff_ratio))+
+  geom_point() +
+geom_smooth(method = "lm", se = F)
+
+# we want to get a number to describe this relationship
+aridity_mod <- lm(runoff_ratio ~ slope_mean, data = topo_runoff)
+summary(aridity_mod)
+```
+
+Slope controls 38% of the variation in runoff_ratio, where every increase of 1 m/km of slope over the catchment area increases runoff_ratio by 0.00305.
+
+p_mean
+
+```{r}
+ggplot(clim_runoff, aes(x = p_mean, y = runoff_ratio))+
+  geom_point() +
+geom_smooth(method = "lm", se = F)
+
+# we want to get a number to describe this relationship
+pmean_mod <- lm(runoff_ratio ~ p_mean, data = clim_runoff)
+summary(pmean_mod)
+```
+
+P_mean controls 50% of the variation in runoff_ratio, where every increase of 1 mm/day increases runoff_ratio by 0.117.
+
+## What are three controls on baseflow_index?
+
+```{r}
+
+# getting datasets prepared to work with:
+
+soilq <- inner_join(soils, hydro %>%
+  select(gauge_id, baseflow_index))
+
+names(soilq)
+
+geolq <- inner_join(geol, hydro %>%
+  select(gauge_id, baseflow_index)) 
+
+names(geolq)
+
+cq2 <- inner_join(climate, hydro %>%
+  select(gauge_id, baseflow_index))
+
+names(cq2)
+
+topoq <- inner_join(topo, hydro %>%
+  select(gauge_id, baseflow_index))
+
+names(topoq)
+
+vegeq <- inner_join(vege, hydro %>%
+  select(gauge_id, baseflow_index))
+
+names(vegeq)
+
+```
+
+high_q_freq
+
+```{r}
+ggplot(hydro, aes(x = high_q_freq, y = baseflow_index))+
+  geom_point() +
+geom_smooth(method = "lm", se = F)
+
+# we want to get a number to describe this relationship
+highq_mod <- lm(baseflow_index ~ high_q_freq, data = hydro)
+summary(highq_mod)
+```
+
+The frequency of high flow days controls 39% of the variation in baseflow_index, where every 1 day/year increase in the frequency of high flow days decreases baseflow_index by -0.0035.
+
+low_q_freq
+
+```{r}
+ggplot(hydro, aes(x = low_q_freq, y = baseflow_index))+
+  geom_point() +
+geom_smooth(method = "lm", se = F)
+
+# we want to get a number to describe this relationship
+lowq_mod <- lm(baseflow_index ~ low_q_freq, data = hydro)
+summary(lowq_mod)
+```
+
+The frequency of low flow days controls 73% of the variation in baseflow_index, where every 1 day/year increase in the frequency of high flow days decreases baseflow_index by -1.697e-03.
+
+q5
+
+```{r}
+ggplot(hydro, aes(x = q5, y = baseflow_index))+
+  geom_point() +
+geom_smooth(method = "lm", se = F)
+
+# we want to get a number to describe this relationship
+q5_mod <- lm(baseflow_index ~ q5, data = hydro)
+summary(q5_mod)
+```
+
+Q5 controls 24% of the variation in baseflow_index, where every 1 mm/day increase in the frequency of high flow days increases baseflow_index by 0.295.
+
+## What are three controls on mean flow?
+
+```{r}
+# prepping datasets to work with:
+
+clim_flow <- inner_join(climate, hydro %>%
+  select(gauge_id, q_mean))
+```
+
+p_mean
+
+```{r}
+ggplot(clim_flow, aes(x = p_mean, y = q_mean))+
+  geom_point() +
+geom_smooth(method = "lm", se = F)
+
+# we want to get a number to describe this relationship
+pmean_flow_mod <- lm(q_mean ~ p_mean, data = clim_flow)
+summary(pmean_flow_mod)
+```
+
+P_mean controls 78% of the variation in mean flow, where every 1 mm/day increase in p_mean increases mean flow by 0.969.
+
+runoff_ratio
+
+```{r}
+ggplot(hydro, aes(x = runoff_ratio, y = q_mean))+
+  geom_point() +
+geom_smooth(method = "lm", se = F)
+
+# we want to get a number to describe this relationship
+runoff_flow_mod <- lm(q_mean ~ runoff_ratio, data = hydro)
+summary(runoff_flow_mod)
+```
+
+Runoff_ratio controls 76% of the variation in mean flow, where every increase of 1 in runoff_ratio increases mean flow by 5.792.
+
+```{r}
+ggplot(hydro, aes(x = q95, y = q_mean))+
+  geom_point() +
+geom_smooth(method = "lm", se = F)
+
+# we want to get a number to describe this relationship
+q95_flow_mod <- lm(q_mean ~ q95, data = hydro)
+summary(q95_flow_mod)
+```
+
+Q95 controls 92% of the variation in mean flow, where every increase of 1 in q95 increases mean flow by 0.301.
+
+===
+
+Following doesn't pertain to the assignment - it's just notes from class.
+
+Notes
+
+-   springs don't care how much rain there was, their discharge is usually always the same
+
+-   sand/silt/clay, hydrographs/baseflow,
+
+==
+
+```{r}
+library(GGally)
+# using easier way to look at correlations between everything:
+png(filename = "bigclimateplot.png", width = 10, height = 8, units = "in", res = 300)
+cq %>%
+  select_if(is.numeric) %>%
+  ggpairs() %>%
+  dev.off()
+
+long_cq <- cq %>%
+  select_if(is.numeric) %>%
+  pivot_longer(cols = p_mean:low_prec_dur,
+               values_to = "value",
+               names_to = "driver")
+
+ggplot(long_cq, aes(value, q95)) +
+  geom_point() +
+  facet_grid(~driver, scales = "free")
+
+###########
+
+long_climrun <- clim_runoff %>%
+  select_if(is.numeric) %>%
+  pivot_longer(cols = p_mean:low_prec_dur,
+               values_to = "value",
+               names_to = "driver")
+
+ggplot(long_climrun, aes(value, runoff_ratio)) +
+  geom_point() +
+  facet_grid(~driver, scales = "free")
+
+##############
+
+long_clim_flow <- clim_flow %>%
+  select_if(is.numeric) %>%
+  pivot_longer(cols = p_mean:low_prec_dur,
+               values_to = "value",
+               names_to = "driver")
+
+ggplot(long_clim_flow, aes(value, q_mean)) +
+  geom_point() +
+  facet_grid(~driver, scales = "free")
+
+##########3
+
+
+long_hydro <- hydro %>%
+  select_if(is.numeric) %>%
+  pivot_longer(cols = runoff_ratio:hfd_mean,
+               values_to = "value",
+               names_to = "driver")
+
+ggplot(long_hydro, aes(value, q_mean)) +
+  geom_point() +
+  facet_grid(~driver, scales = "free")
+```

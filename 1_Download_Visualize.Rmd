@@ -11,13 +11,9 @@ library(tidyverse)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-
 # Data Acquisition
 
-For this assignment we are going to be playing with annually
-aggregated metrics of USGS flow data from the [CAMELS](https://ral.ucar.edu/solutions/products/camels) dataset. This dataset
-has sparked a revolution in machine learning in hydrology. 
-
+For this assignment we are going to be playing with annually aggregated metrics of USGS flow data from the [CAMELS](https://ral.ucar.edu/solutions/products/camels) dataset. This dataset has sparked a revolution in machine learning in hydrology.
 
 ```{r}
 if(!file.exists('data')){
@@ -59,9 +55,7 @@ download.file('https://gdex.ucar.edu/dataset/camels/file/camels_attributes_v2.0.
 
 ```
 
-
 ## Data org
-
 
 ```{r}
 dat_files <- list.files('data',
@@ -82,12 +76,8 @@ hydro <- read_delim('data/hydro.txt', delim = ';')
 
 # Assignment
 
-## What are three controls on average runoff ratio? 
+## What are three controls on average runoff ratio?
 
-## What are three controls on baseflow_index? 
+## What are three controls on baseflow_index?
 
-## What are three controls on mean flow? 
-
-
-
-
+## What are three controls on mean flow?
