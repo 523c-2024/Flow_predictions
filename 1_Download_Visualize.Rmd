@@ -73,6 +73,15 @@ dat_files <- list.files('data',
 climate <- read_delim(dat_files[1], delim = ';')
 
 hydro <- read_delim('data/hydro.txt', delim = ';')
+
+geol <- read_delim('data/geol.txt', delim = ';')
+
+soil <- read_delim('data/soil.txt', delim = ';')
+
+topo <- read_delim('data/topo.txt', delim = ';')
+
+vege <- read_delim('data/vege.txt', delim = ';')
+
 ```
 
 ## Initial data viz
@@ -140,15 +149,123 @@ ggplot(long_cq, aes(value,
 
 The average precip (p_mean) controls 71% of the variation in 195, where every 1 mm/day increase in long-term average precip increases the q95 by 2.95 mm/day. 
 
+## Assignment code
+
 
 # Assignment
 
 ## What are three controls on average runoff ratio? 
 
+```{r}
+hydro_soil<- inner_join(hydro%>%
+                   select(gauge_id, runoff_ratio, baseflow_index, q_mean),soil)
+
+ggplot(hydro_soil, aes(x = clay_frac, y = runoff_ratio)) + 
+  geom_point() + 
+  geom_smooth(method = 'lm', se = F)
+
+runoff_clay_mod <- lm(runoff_ratio ~ clay_frac, data = hydro_soil)
+
+summary(runoff_clay_mod)
+```
+
+My first predictor clay fraction is statistically significant with an extremely low p-value (< 2.2e-16), however it has a low explainability as a driver with only a 10.56 % r2 value. 
+
+```{r}
+
+ggplot(hydro_soil, aes(x = soil_porosity, y = runoff_ratio)) + 
+  geom_point() + 
+  geom_smooth(method = 'lm', se = F)
+
+runoff_porosity_mod <- lm(runoff_ratio ~ soil_porosity, data = hydro_soil)
+
+summary(runoff_porosity_mod)
+```
+
+Soil porisity as another predictor is also statistically significant (p-val 0.00633) but with an almost negligible r2 value, of less than 1%, in this case I would choose clay fraction as a stronger driver with what I would consider a similar contribution of porosity. 
+
+```{r}
+hydro_topo<- inner_join(hydro%>%
+                   select(gauge_id, runoff_ratio, baseflow_index, q_mean),topo)
+
+ggplot(hydro_topo, aes(x = slope_mean, y = runoff_ratio)) + 
+  geom_point() + 
+  geom_smooth(method = 'lm', se = F)
+
+runoff_water_mod <- lm(runoff_ratio ~ slope_mean, data = hydro_topo)
+
+summary(runoff_water_mod)
+```
+
+For the last contol of runoff ratio I used the topographical data instead of soil and slope mean has both a strong p value (<2e-16), and explainability (~38%). Additionally, I think this would combine with clay fraction as strong co-predictors in a ML/DL model becasue it is a different type of trend the model can pick up on. 
+
 ## What are three controls on baseflow_index? 
+```{r}
+ggplot(hydro_soil, aes(x = clay_frac, y = baseflow_index)) + 
+  geom_point() + 
+  geom_smooth(method = 'lm', se = F)
+
+baseflow_clay_mod <- lm(baseflow_index ~ clay_frac, data = hydro_soil)
+
+summary(baseflow_clay_mod)
+```
+
+Clay fraction is similary to runoff in both statistical significance (p_val <2e-16) and explainability (~14%), it is a driver but not majorly which makes sense since higher clay fractions would allow for lower infiltration with fast precip events. 
+
+```{r}
+ggplot(hydro_soil, aes(x = sand_frac, y = baseflow_index)) + 
+  geom_point() + 
+  geom_smooth(method = 'lm', se = F)
+
+baseflow_sand_mod <- lm(baseflow_index ~ sand_frac, data = hydro_soil)
+
+summary(baseflow_sand_mod)
+```
+
+I chose to model sand fraction becasue I thought it would lead to more baseflow since there is a higher porosity but  in this case it is less significant both statistically (p-val = 1.01e-14 ) and explainability (8%) than clay fraction. Between the two I would go with clay fraction. 
+
+```{r}
+hydro_climate<- inner_join(hydro%>%
+                   select(gauge_id, runoff_ratio, baseflow_index, baseflow_index, q_mean),climate)
+
+ggplot(hydro_climate, aes(x = frac_snow, y = baseflow_index)) + 
+  geom_point() + 
+  geom_smooth(method = 'lm', se = F)
+
+baseflow_snow_mod <- lm(baseflow_index ~ frac_snow, data = hydro_climate)
+
+summary(baseflow_snow_mod)
+```
+
+Lastly for baseflow I chose fraction snow from the climate data to compare to because i thought that the snow dominated hydrogrpahs would have a stronger relationship with baseflow as the snow should melt slower and allow for more groundwater inputs downstream. P val (<2e-16 ) and r2 (15%) makes it as strong as clay fraction, there may be some overlap if using them as coverinece. 
 
 ## What are three controls on mean flow? 
+```{r}
+png(filename = 'qmean_soil.png', width = 10, height = 8, units = 'in', res = 300)
+hydro_soil %>%
+  select_if(is.numeric) %>%
+  ggpairs()
+dev.off()
+```
 
+with respect to the soil variables being a driver of average discharge, I would likely elect to not use any of the soil variables for the prediction of q_mean because there doesn't seem to be a high correlation between any of the variables and q_mean. 
 
+```{r}
+png(filename = 'qmean_climate.png', width = 10, height = 8, units = 'in', res = 300)
+hydro_climate %>%
+  select_if(is.numeric) %>%
+  ggpairs()
+dev.off()
+```
 
+A lot of the climate variables seem to be highly correlated with mean discharge which makes sense since these account for precipitation and intensity, I would likely choose two or three of the variables that may not have a lot of covariance for a model predicting mean discharge, namely; aridity, p_mean, and either the paring of high/low precip duration/frequency, I think that aridity would be correlated wih p_mean. 
 
+```{r}
+png(filename = 'qmean_topo.png', width = 10, height = 8, units = 'in', res = 300)
+hydro_topo %>%
+  select_if(is.numeric) %>%
+  ggpairs()
+dev.off()
+```
+
+Lastly, for topographical modeling, I would likely choose the variables gauge latitude and slope mean, I would choose gauge latitude because it makes sense that lower latitudes would have lower discharges since they are more arid. I also think that slope mean would give a model more context as I think that more gradual slopes would have higher mean discharges since they would likely be located in higher order streams (downstream). 
