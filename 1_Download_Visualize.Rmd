@@ -7,6 +7,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 library(tidyverse)
+library(broom)
 
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -78,13 +79,110 @@ hydro <- read_delim('data/hydro.txt', delim = ';')
 
 ```{r}
 
+all_vars <- inner_join(climate, hydro, by = 'gauge_id')
+
+create_plot <- function(x, y){
+  ggplot(all_vars, aes(x = .data[[x]], y = .data[[y]])) +
+    geom_point()+
+    geom_smooth(method = "lm", se = F)
+}
+
+create_model <- function(x, y){
+  model <- lm(all_vars[[y]] ~ all_vars[[x]], na.action = na.omit)
+  
+  
+  output <- tidy(model)%>%
+    filter(term != '(Intercept)')%>%
+    mutate(x_term = x, 
+           y_term = y, 
+           r2 = summary(model)$r.squared, 
+           sigma = summary(model)$sigma)%>%
+    select(x_term, y_term, slope = estimate, p_value = p.value, r2, sigma)
+  
+  output
+
+}
+
+
 ```
 
 # Assignment
 
 ## What are three controls on average runoff ratio? 
 
+```{r}
+
+#all column names other than runoff ratio
+vars <- setdiff(names(all_vars%>% select_if(is.numeric)), c('gauge_id', 'runoff_ratio'))
+
+plots <- map2(.x = "runoff_ratio", .y = vars , create_plot)
+models <- map2(.x = "runoff_ratio", .y = vars , create_model)%>%
+  bind_rows()%>%
+  arrange(r2)
+
+ggpubr::ggarrange(plotlist = plots)
+
+ggplot(models, aes(x = y_term, y = r2))+
+  geom_point()+
+  #make x axis names vertical
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 90))
+
+# grab the models for q_mean, q95, aridity
+models%>%
+  filter(y_term %in% c('q95', 'low_prec_freq', 'q_mean'))
+# only show the plots for these variables
+vars <- c('q95', 'low_prec_freq', 'q_mean')
+list_p <- map2(.x = "runoff_ratio", .y = vars , create_plot)
+
+
+ggpubr::ggarrange(plotlist = list_p)
+```
+
+There are a few hydrological variables that are strongly correlated with runoff ratio. Mean Q is the most strongly correlated with runoff ratio, with a positive relationship (slope = 5.79) and predicts runoff ratio 76.7% of the time (pvalue = 3.07e-213). This makes sense since areas with higher flows are likely to have higher runoff created in their watersheds. 
+A similar variable (q95) is positively correlated with runoff ratio and predicts runoff ratio  78.7% of the time. This shows that areas which experence higher peak flows, have higher runoff generation which is either indicative of the type of precip they recieve or the lands inability to take up that water and move it as baseflow. 
+
+Low Precipitation frequency is negatively correlated with runoff ratio but is predicts runoff ratio less accurately(slope = -109, r2 = 0.527).Places where precipitation is very frequent will have more runoff generated as the soil is saturated and can't take up any more water, whereas places where rain is less frequent, the soil has time to absorb the water and less runoff is generated.
+
+
 ## What are three controls on baseflow_index? 
+
+```{r}
+
+#all column names other than runoff ratio
+vars <- setdiff(names(all_vars%>% select_if(is.numeric)), c('gauge_id', 'baseflow_index'))
+
+plots <- map2(.x = "baseflow_index", .y = vars , create_plot)
+models <- map2(.x = "baseflow_index", .y = vars , create_model)%>%
+  bind_rows()%>%
+  arrange(r2)
+
+ggpubr::ggarrange(plotlist = plots)
+
+ggplot(models, aes(x = y_term, y = r2))+
+  geom_point()+
+  #make x axis names vertical
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 90))
+
+
+
+# grab the models for q_mean, q95, aridity
+vars <- c('low_q_freq', 'high_q_freq', 'q5', 'aridity', 'low_q_dur', "stream_elas", 'low_prec_dur')
+
+models%>%
+  filter(y_term %in% vars)
+# only show the plots for these variables
+
+list_p <- map2(.x = "baseflow_index", .y = vars , create_plot)
+
+
+ggpubr::ggarrange(plotlist = list_p)
+```
+
+Baseflow index seems to be primiarily controlled by low discharge frequency, s6
+
+
 
 ## What are three controls on mean flow? 
 
