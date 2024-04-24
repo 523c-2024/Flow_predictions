@@ -8,6 +8,9 @@ output: html_document
 ```{r setup, include=FALSE}
 
 library(tidyverse)
+library(rpart)
+library(randomForest)
+
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
@@ -32,9 +35,18 @@ Please report your R2, slope estimates, and p-value of your model and
 write out your interpretation of these numbers. 
 
 ```{r}
+hydro_topo_climate <- inner_join(inner_join(hydro %>%
+                   select(gauge_id, q_mean), topo), climate)
 
+baseflow_par_mod <- lm(q_mean ~ gauge_lat* slope_mean* aridity* p_mean, data = hydro_topo_climate)
+
+
+summary(baseflow_par_mod)
 ```
 
+I chose to model q_mean for my model and use a combination of topographic and climate variables to help predict q_mean. I chose gauge lat because lower latitudes, would be more arid, and vice-versa, due to overall US topography. I also chose slope_mean as a predictor, because I think that the slope mean can help explain where a watershed is in the overall stream reach, as the river runs longer it tends to have more gradual slopes in the reach. I also chose to include aridity because I think that it can help explain a bit more of the model, especially when combined with the other factors, lastly I chose p_mean because higher p_means should mean that the watersheds have higher precipitation events resulting in higher mean flows. 
+
+I chose to use a multiplicative model because I think that some of these variables won't be important by themselves, namely aridity because by themselves I don't think that they will drive mean discharge but through an interaction with the other variables they will increase explainability through r2. My model overall has a high r2 value (94%) as well as a low p-value (< 2.2e-16); I believe that this is better than additive or crossed interaction modeling in lm because the variables I chose have individual model effects as well as their iterations, for example aridity, and p_mean are not significant by themselves (p-val>0.05) but through their interactions with other variables it increases statistical significance. This type of model helps the modeler understand how individual variables are important in the model and their higher importance when other variables are involved. Having chosen two variables each from climate and topo data I think this model would also be easily accepted as it accounts for different types of physical drivers for q_mean. 
 
 ## Build a CART model to predict flow. 
 
@@ -47,9 +59,56 @@ Read the logic intro above, and the code demo as well, to build a CART model
 version of your lm. Use the code to visualize your CART output. 
 
 ```{r}
+# Build the CART model
+cart_model <- rpart(q_mean ~ gauge_lat + slope_mean + aridity + p_mean, 
+                    data = hydro_topo_climate)
+
+# Print the CART model summary
+summary(cart_model)
 
 ```
 
+```{r}
+# Plot the decision tree
+plot(cart_model)
+text(cart_model)
+
+```
+
+From a basic cart model with my previous model predictors, aridity is the highest order predictor with the main step depending on the aridity of the watersheds to predict q_mean, which makes intuitive sense to me as higher aridity should have lower average discharges. 
+
+```{r}
+# Extract actual q_mean values
+actual_q_mean <- hydro_topo_climate$q_mean
+
+# Extract predicted q_mean values
+predicted_q_mean <- predict(cart_model)
+
+# Remove any rows with missing values
+actual_q_mean <- na.omit(actual_q_mean)
+predicted_q_mean <- predicted_q_mean[!is.na(actual_q_mean)]  # Align indices with actual_q_mean
+
+# Create a data frame with actual and predicted values
+predictions <- data.frame(Actual = actual_q_mean, Predicted = predicted_q_mean)
+
+# Plot Predictions vs. Actuals
+plot(predictions, xlab = "Actual q_mean", ylab = "Predicted q_mean", 
+     main = "Predictions vs. Actuals", col = "blue")
+abline(0, 1, col = "red")  # Add diagonal line for reference
+
+
+```
+
+However, once we plot the actual results of the model we see that the model is not actually predicting the mean discharge very well and is instead prediciting mean steps across the dataset. This tends to occur when there is not enough information for the model to actually make predictions or the loss function is not set up to account for variability in the prediction parameters. I think that the model is not capable of making predictions for mean discharge and is "cheating" to make mean discharge predictions reducing loss by only predicting the mean of the observations. 
+
+```{r}
+mse <- mean((predictions$Actual - predictions$Predicted)^2)
+
+print(mse)
+
+```
+
+Given that the model also has a  low mean square error (~0.23), I think that the model is confirmed to not be making predictions and instead spitting out the mean discharge based on the aridity factor to reduce the loss function, which makes sense since the default loss function for cart is the sum of square errors.
 
 ## Build a RandomForest
 
@@ -64,6 +123,53 @@ at least into train and test datasets and ideally into train-test-val.
 
 
 ```{r}
+set.seed(123)
+
+# Shuffle the rows of the dataset
+hydro_topo_climate_shuffled <- hydro_topo_climate[sample(nrow(hydro_topo_climate)), ]
+
+# Define the proportions for train, test, and validation sets
+train_prop <- 0.7
+test_prop <- 0.2
+val_prop <- 0.1
+
+# Calculate the number of rows for each set
+n_rows <- nrow(hydro_topo_climate_shuffled)
+n_train <- floor(train_prop * n_rows)
+n_test <- floor(test_prop * n_rows)
+n_val <- n_rows - n_train - n_test
+
+# Create train, test, and validation sets
+train_data <- hydro_topo_climate_shuffled[1:n_train, ]
+test_data <- hydro_topo_climate_shuffled[(n_train + 1):(n_train + n_test), ]
+val_data <- hydro_topo_climate_shuffled[(n_train + n_test + 1):n_rows, ]
+
+# Remove rows with missing values from train_data and test_data
+train_data <- na.omit(train_data)
+test_data <- na.omit(test_data)
+
+# Train the Random Forest model
+rf_model <- randomForest(q_mean ~ gauge_lat + slope_mean + aridity + p_mean, data = train_data, ntree = 2, mtry = 2)
+
+# Predict on the test set
+test_pred <- predict(rf_model, newdata = test_data)
+
+# Evaluate the model on the test set (for example, using Mean Squared Error)
+rf_mse <- mean((test_pred - test_data$q_mean)^2)
+
 
 ```
 
+```{r}
+# Create a data frame with actual and predicted values
+results <- data.frame(Actual = test_data$q_mean, Predicted = test_pred)
+
+# Plot predicted vs. actual values using ggplot
+ggplot(results, aes(x = Actual, y = Predicted)) +
+  geom_point(color = "blue") +
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +
+  labs(x = "Actual q_mean", y = "Predicted q_mean", title = paste0("Predicted vs. Actual q_mean","  MSE=", round(rf_mse,2))) +
+  theme_minimal()
+```
+
+The results of the randomforest model are much better with actual predictions occuring and with a really low loss occurring over the whole mean discharge rate, I reduced the amount of trees and there is still good predictions occurring over the whole mean discharge range. I would probably mess around more with data set and model because I have an intuition that it is probably getting over trained somewhere. The model has a really low Mean Squared Error (0.13), which in the past my models with really low discharge tend to be overtrained somewhere in the dataset, but there might be an underlying pattern that the RF model is just simply picking up on. 
