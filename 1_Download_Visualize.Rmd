@@ -12,13 +12,9 @@ library(GGally)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-
 # Data Acquisition
 
-For this assignment we are going to be playing with annually
-aggregated metrics of USGS flow data from the [CAMELS](https://ral.ucar.edu/solutions/products/camels) dataset. This dataset
-has sparked a revolution in machine learning in hydrology. 
-
+For this assignment we are going to be playing with annually aggregated metrics of USGS flow data from the [CAMELS](https://ral.ucar.edu/solutions/products/camels) dataset. This dataset has sparked a revolution in machine learning in hydrology.
 
 ```{r}
 if(!file.exists('data')){
@@ -60,9 +56,7 @@ download.file('https://gdex.ucar.edu/dataset/camels/file/camels_attributes_v2.0.
 
 ```
 
-
 ## Data org
-
 
 ```{r}
 dat_files <- list.files('data',
@@ -73,30 +67,23 @@ dat_files <- list.files('data',
 climate <- read_delim(dat_files[1], delim = ';')
 
 hydro <- read_delim('data/hydro.txt', delim = ';')
+
 ```
 
 ## Initial data viz
 
-
-### Baseflow 
-
+### Baseflow
 
 ```{r}
 
 ggplot(hydro, aes(x = baseflow_index,
                   y = q95)) + 
   geom_point()
-
-
 ```
 
-
-Baseflow doesn't strongly control Q95 in a predictable way. 
-
-
+Baseflow doesn't strongly control Q95 in a predictable way.
 
 ### Climate controls
-
 
 ```{r}
 
@@ -104,24 +91,23 @@ cq <- inner_join(climate, hydro %>%
                    select(gauge_id, q95))
 
 
-
 ggplot(cq, aes(x = p_mean, y = q95)) + 
   geom_point() + 
   geom_smooth(method = 'lm', se = F)
 
 p_mean_mod <- lm(q95 ~ p_mean, data = cq)
-
 ```
-
 
 #### All at once
 
 ```{r}
 
 png(filename = 'bigclimeplot.png', width = 10, height = 8, units = 'in', res = 300)
+
 cq %>%
   select_if(is.numeric) %>%
   ggpairs()
+
 dev.off()
 
 
@@ -138,17 +124,61 @@ ggplot(long_cq, aes(value,
              scales = 'free')
 ```
 
-The average precip (p_mean) controls 71% of the variation in 195, where every 1 mm/day increase in long-term average precip increases the q95 by 2.95 mm/day. 
-
+The average precip (p_mean) controls 71% of the variation in 195, where every 1 mm/day increase in long-term average precip increases the q95 by 2.95 mm/day.
 
 # Assignment
 
-## What are three controls on average runoff ratio? 
+## What are three controls on average runoff ratio?
 
-## What are three controls on baseflow_index? 
+```{r}
+cq_rr <- inner_join(climate, hydro %>%
+  select(gauge_id, runoff_ratio))
+```
 
-## What are three controls on mean flow? 
+```{r}
+png(filename = 'bigrrplot.png', width = 10, height = 8, units = 'in', res = 300)
 
+cq_rr %>%
+  select_if(is.numeric) %>%
+  ggpairs()
 
+dev.off()
+```
 
+```{r}
+#plot relationships
+ggplot(cq_rr, aes(x=p_mean, y = runoff_ratio)) + geom_point() + geom_smooth(method = "lm", se = F)
 
+ggplot(cq_rr, aes(x=high_prec_freq, y = runoff_ratio)) + geom_point() + geom_smooth(method = "lm", se = F)
+
+ggplot(cq_rr, aes(x=low_prec_freq, y = runoff_ratio)) + geom_point() + geom_smooth(method = "lm", se = F)
+```
+
+```{r}
+#model relationships to get summarys
+
+p_mean_rr_mod <- lm(runoff_ratio~p_mean, data = cq_rr)
+
+summary(p_mean_rr_mod)
+
+##repeat this for the other two! Then write a description of what we found
+```
+
+Three controls on average runoff ratio include p_mean, high precipitation frequency, and low precipitation duration
+
+## What are three controls on baseflow_index?
+
+```{r}
+cq_bf <- inner_join(geol, hydro %>%
+                      select(gauge_id, baseflow_index))
+```
+
+```{r}
+
+```
+
+## What are three controls on mean flow?
+
+```{r}
+
+```
