@@ -49,6 +49,10 @@ download.file('https://gdex.ucar.edu/dataset/camels/file/camels_vege.txt',
 download.file('https://gdex.ucar.edu/dataset/camels/file/camels_hydro.txt',
               'data/hydro.txt')
 
+#geol (response variable)
+download.file('https://gdex.ucar.edu/dataset/camels/file/camels_geol.txt',
+              'data/geol.txt')
+
 
 # Variable definitions
 download.file('https://gdex.ucar.edu/dataset/camels/file/camels_attributes_v2.0.pdf',
@@ -68,6 +72,7 @@ climate <- read_delim(dat_files[1], delim = ';')
 
 hydro <- read_delim('data/hydro.txt', delim = ';')
 
+geol <- read_delim('data/geol.txt', delim = ';')
 ```
 
 ## Initial data viz
@@ -169,12 +174,27 @@ Three controls on average runoff ratio include p_mean, high precipitation freque
 ## What are three controls on baseflow_index?
 
 ```{r}
-cq_bf <- inner_join(geol, hydro %>%
-                      select(gauge_id, baseflow_index))
+cq_bf <- inner_join(climate,hydro %>%
+  select(gauge_id, baseflow_index))
 ```
 
 ```{r}
+png(filename = 'bigbfplot.png', width = 10, height = 8, units = 'in', res = 300)
 
+cq_bf %>%
+  select_if(is.numeric) %>%
+  ggpairs()
+
+dev.off()
+```
+
+```{r}
+#plot relationships
+ggplot(cq_bf, aes(x=p_mean, y = baseflow_index)) + geom_point() + geom_smooth(method = "lm", se = F)
+
+ggplot(cq_rr, aes(x=high_prec_freq, y = runoff_ratio)) + geom_point() + geom_smooth(method = "lm", se = F)
+
+ggplot(cq_rr, aes(x=low_prec_freq, y = runoff_ratio)) + geom_point() + geom_smooth(method = "lm", se = F)
 ```
 
 ## What are three controls on mean flow?
