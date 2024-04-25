@@ -38,49 +38,29 @@ write out your interpretation of these numbers.
 
 ```{r}
 #plot simple relationship
-ggplot(hydro, aes(x = slope_fdc, y = q95)) + 
-  geom_point() + 
-  geom_smooth(method = 'lm', se = F)
-
-png(filename = 'bighydroplot.png', width = 10, height = 8, units = 'in', res = 300)
-hydro %>%
-  select_if(is.numeric) %>%
-  ggpairs()
-dev.off()
-
-#create simple model
-slope_mod <- lm(q95 ~ slope_fdc, data = hydro)
-
-long_hydro <- hydro %>%
-  select_if(is.numeric) %>%
-  #selecting only the columns I want, had to do it this way because the order was weird
-  select(-c(q5, zero_q_freq, hfd_mean, high_q_freq, high_q_dur, low_q_freq, low_q_dur)) %>%
-  pivot_longer(cols = q_mean:stream_elas,
-               values_to = 'value',
-               names_to = 'driver')
-
-#plotting
-ggplot(long_hydro, aes(value,
-                    q95)) +
-  geom_point() +
-  facet_grid(~driver,
-             scales = 'free')
+#create parsimonious model
+slope_mod <- lm(q_mean ~ slope_fdc * runoff_ratio * baseflow_index, data = hydro)
 
 # Get the summary of the model
 summary(slope_mod)
 ```
 
-Answer:
+**Answer:**
 
-slope estimates = 4.7278
+Slope Estimate:
 
-r-squared = 0.2361
+-   A one-unit increase in **`slope_fdc`** is associated with a decrease
+    of \~0.5330 units in **`q_mean`**
+
+-   A one-unit increase in **`runoff_ratio`** is associated with an
+    increase of \~0.9667 units in **`q_mean`**.
+
+-   A one-unit increase in **`baseflow_index`** is associated with a
+    decrease of \~0.3779 units in **`q_mean`**
+
+r-squared = 0.8056
 
 p-value = \< 2e-16
-
-The slope controls \~24% of the variation in q95, where 1-unit increase,
-q95 is predicted to increase by 4.73 mm. This is a modest linear
-correlation.
 
 ## Build a CART model to predict flow.
 
@@ -98,7 +78,24 @@ Read the logic intro above, and the code demo as well, to build a CART
 model version of your lm. Use the code to visualize your CART output.
 
 ```{r}
+library(rpart)
 
+cart_mod <- rpart(q_mean ~ slope_fdc+runoff_ratio+baseflow_index, data=hydro, method = "anova")
+
+# visualize cross-validation results
+plotcp(cart_mod)
+
+#summarize data
+summary(cart_mod)
+
+# create additional plots
+rsq.rpart(cart_mod) # visualize cross-validation results
+
+# plot tree
+plot(cart_mod, uniform=TRUE,
+   main="Regression Tree for Mean Flow ")
+text(cart_mod, use.n=TRUE, all=TRUE, cex=.8)
+##not sure that this shows much information... did I do it wrong?
 ```
 
 ## Build a RandomForest
