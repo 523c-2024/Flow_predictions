@@ -296,6 +296,8 @@ summary(runoff_flow_mod)
 
 Runoff_ratio controls 76% of the variation in mean flow, where every increase of 1 in runoff_ratio increases mean flow by 5.792.
 
+q95
+
 ```{r}
 ggplot(hydro, aes(x = q95, y = q_mean))+
   geom_point() +
