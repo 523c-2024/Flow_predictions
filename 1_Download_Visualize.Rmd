@@ -163,13 +163,17 @@ ggplot(cq_rr, aes(x=low_prec_freq, y = runoff_ratio)) + geom_point() + geom_smoo
 #model relationships to get summarys
 
 p_mean_rr_mod <- lm(runoff_ratio~p_mean, data = cq_rr)
-
 summary(p_mean_rr_mod)
 
+high_p_rr_mod <- lm(runoff_ratio~high_prec_freq, data = cq_rr)
+summary(high_p_rr_mod)
+
+low_p_rr_mod <- lm(runoff_ratio~low_prec_freq, data = cq_rr)
+summary(low_p_rr_mod)
 ##repeat this for the other two! Then write a description of what we found
 ```
 
-Three controls on average runoff ratio include p_mean, high precipitation frequency, and low precipitation duration
+Three controls on average runoff ratio include p_mean, high precipitation frequency, and low precipitation frequency. All three variables have a highly significant p-value in relationship to runoff ratio.
 
 ## What are three controls on baseflow_index?
 
@@ -190,15 +194,61 @@ dev.off()
 
 ```{r}
 #plot relationships
-ggplot(cq_bf, aes(x=p_mean, y = baseflow_index)) + geom_point() + geom_smooth(method = "lm", se = F)
+ggplot(cq_bf, aes(x=frac_snow, y = baseflow_index)) + geom_point() + geom_smooth(method = "lm", se = F)
 
-ggplot(cq_rr, aes(x=high_prec_freq, y = runoff_ratio)) + geom_point() + geom_smooth(method = "lm", se = F)
+ggplot(cq_bf, aes(x=high_prec_freq, y = baseflow_index)) + geom_point() + geom_smooth(method = "lm", se = F)
 
-ggplot(cq_rr, aes(x=low_prec_freq, y = runoff_ratio)) + geom_point() + geom_smooth(method = "lm", se = F)
+ggplot(cq_bf, aes(x=low_prec_freq, y = baseflow_index)) + geom_point() + geom_smooth(method = "lm", se = F)
 ```
+
+```{r}
+frac_snow_bf_mod <- lm(baseflow_index~frac_snow, data = cq_bf)
+summary(frac_snow_bf_mod)
+        
+high_prec_freq_bf_mod <- lm(baseflow_index~high_prec_freq, data = cq_bf)
+summary(high_prec_freq_bf_mod)
+
+low_prec_freq_bf_mod <- lm(baseflow_index~low_prec_freq, data = cq_bf)
+summary(low_prec_freq_bf_mod)
+```
+
+Three controls on average runoff ratio include fraction of precip falling as snow, high precipitation frequency, and low precipitation frequency. All three variables have a highly significant p-value in relationship to runoff ratio.
 
 ## What are three controls on mean flow?
 
 ```{r}
-
+cq_flow <- inner_join(climate,hydro %>%
+  select(gauge_id, q_mean))
 ```
+
+```{r}
+png(filename = 'bigmeanflowplot.png', width = 10, height = 8, units = 'in', res = 300)
+
+cq_flow %>%
+  select_if(is.numeric) %>%
+  ggpairs()
+
+dev.off()
+```
+
+```{r}
+#plot relationships
+ggplot(cq_flow, aes(x=p_mean, y = q_mean)) + geom_point() + geom_smooth(method = "lm", se = F)
+
+ggplot(cq_flow, aes(x=aridity, y = q_mean)) + geom_point() + geom_smooth(method = "lm", se = F)
+
+ggplot(cq_flow, aes(x=low_prec_dur, y = q_mean)) + geom_point() + geom_smooth(method = "lm", se = F)
+```
+
+```{r}
+p_mean_q_mod <- lm(q_mean~p_mean, data = cq_flow)
+summary(p_mean_q_mod)
+        
+aridity_q_mod <- lm(q_mean~aridity, data = cq_flow)
+summary(aridity_q_mod)
+
+low_prec_dur_q_mod <- lm(q_mean~low_prec_dur, data = cq_flow)
+summary(low_prec_dur_q_mod)
+```
+
+Three controls on average runoff ratio include fraction of mean precipitation, aridity, and low precipitation duration. All three variables have a highly significant p-value in relationship to runoff ratio.
