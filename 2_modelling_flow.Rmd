@@ -11,6 +11,7 @@ editor_options:
 ```{r setup, include=FALSE}
 
 library(tidyverse)
+library(rpart)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
@@ -39,10 +40,10 @@ write out your interpretation of these numbers.
 ```{r}
 #plot simple relationship
 #create parsimonious model
-slope_mod <- lm(q_mean ~ slope_fdc * runoff_ratio * baseflow_index, data = hydro)
+p_mod <- lm(q_mean ~ slope_fdc * runoff_ratio * baseflow_index, data = hydro)
 
-# Get the summary of the model
-summary(slope_mod)
+#Get the summary of the model
+summary(p_mod)
 ```
 
 **Answer:**
@@ -78,8 +79,6 @@ Read the logic intro above, and the code demo as well, to build a CART
 model version of your lm. Use the code to visualize your CART output.
 
 ```{r}
-library(rpart)
-
 cart_mod <- rpart(q_mean ~ slope_fdc+runoff_ratio+baseflow_index, data=hydro, method = "anova")
 
 # visualize cross-validation results
@@ -94,8 +93,9 @@ rsq.rpart(cart_mod) # visualize cross-validation results
 # plot tree
 plot(cart_mod, uniform=TRUE,
    main="Regression Tree for Mean Flow ")
-text(cart_mod, use.n=TRUE, all=TRUE, cex=.8)
-##not sure that this shows much information... did I do it wrong?
+
+text(cart_mod, use.n=TRUE, all=TRUE, cex=.5)
+##the titles for my text are not correct on this plot, bit sure why but I haven't been able to figure it out. 
 ```
 
 ## Build a RandomForest
