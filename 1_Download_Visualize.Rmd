@@ -7,7 +7,11 @@ output: html_document
 
 ```{r setup, include=FALSE}
 library(tidyverse)
+
+library(broom)
+
 library(GGally)
+
 
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -83,9 +87,35 @@ hydro <- read_delim('data/hydro.txt', delim = ';')
 
 ```{r}
 
+
+all_vars <- inner_join(climate, hydro, by = 'gauge_id')
+
+create_plot <- function(x, y){
+  ggplot(all_vars, aes(x = .data[[x]], y = .data[[y]])) +
+    geom_point()+
+    geom_smooth(method = "lm", se = F)
+}
+
+create_model <- function(x, y){
+  model <- lm(all_vars[[y]] ~ all_vars[[x]], na.action = na.omit)
+  
+  
+  output <- tidy(model)%>%
+    filter(term != '(Intercept)')%>%
+    mutate(x_term = x, 
+           y_term = y, 
+           r2 = summary(model)$r.squared, 
+           sigma = summary(model)$sigma)%>%
+    select(x_term, y_term, slope = estimate, p_value = p.value, r2, sigma)
+  
+  output
+
+}
+
 ggplot(hydro, aes(x = baseflow_index,
                   y = q95)) + 
   geom_point()
+
 
 
 ```
@@ -145,10 +175,132 @@ The average precip (p_mean) controls 71% of the variation in 195, where every 1 
 
 ## What are three controls on average runoff ratio? 
 
+```{r}
+
+#all column names other than runoff ratio
+vars <- setdiff(names(all_vars%>% select_if(is.numeric)), c('gauge_id', 'runoff_ratio'))
+
+plots <- map2(.x = "runoff_ratio", .y = vars , create_plot)
+models <- map2(.x = "runoff_ratio", .y = vars , create_model)%>%
+  bind_rows()%>%
+  arrange(r2)
+
+ggpubr::ggarrange(plotlist = plots)
+
+ggplot(models, aes(x = y_term, y = r2))+
+  geom_point()+
+  #make x axis names vertical
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 90))
+
+# grab the models for q_mean, q95, aridity
+models%>%
+  filter(y_term %in% c('q95', 'low_prec_freq', 'q_mean'))
+# only show the plots for these variables
+vars <- c('q95', 'low_prec_freq', 'q_mean')
+list_p <- map2(.x = "runoff_ratio", .y = vars , create_plot)
+
+
+ggpubr::ggarrange(plotlist = list_p)
+```
+
+There are a few hydrological variables that are strongly correlated with runoff ratio. Mean Q is the most strongly correlated with runoff ratio, with a positive relationship (slope = 5.79) and predicts runoff ratio 76.7% of the time (pvalue = 3.07e-213). This makes sense since areas with higher flows are likely to have higher runoff created in their watersheds. 
+A similar variable (q95) is positively correlated with runoff ratio and predicts runoff ratio  78.7% of the time. This shows that areas which experence higher peak flows, have higher runoff generation which is either indicative of the type of precip they recieve or the lands inability to take up that water and move it as baseflow. 
+
+Low Precipitation frequency is negatively correlated with runoff ratio but is predicts runoff ratio less accurately(slope = -109, r2 = 0.527).Places where precipitation is very frequent will have more runoff generated as the soil is saturated and can't take up any more water, whereas places where rain is less frequent, the soil has time to absorb the water and less runoff is generated.
+
+
 ## What are three controls on baseflow_index? 
+
+```{r}
+
+#all column names other than runoff ratio
+vars <- setdiff(names(all_vars%>% select_if(is.numeric)), c('gauge_id', 'baseflow_index'))
+
+plots <- map2(.x = "baseflow_index", .y = vars , create_plot)
+models <- map2(.x = "baseflow_index", .y = vars , create_model)%>%
+  bind_rows()%>%
+  arrange(r2)
+
+ggpubr::ggarrange(plotlist = plots)
+
+ggplot(models, aes(x = y_term, y = r2))+
+  geom_point()+
+  #make x axis names vertical
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 90))
+
+
+
+# grab the models for q_mean, q95, aridity
+vars <- c('low_q_freq', 'high_q_freq', 'q5', 'aridity', 'low_q_dur', "stream_elas", 'low_prec_dur')
+
+models%>%
+  filter(y_term %in% vars)
+# only show the plots for these variables
+
+list_p <- map2(.x = "baseflow_index", .y = vars , create_plot)
+
+
+ggpubr::ggarrange(plotlist = list_p)
+```
+
+Baseflow index seems to be primarily controlled by low discharge frequency, stream elasticity and low q duration. 
+Low q frequency had the highest r^2 value, predicting 74% of points and was negatively correlated with baseflow index. This makes sense for areas where there may be high flows (creating a high q_mean) but is mostly made up by days with low flows, ie return flows. 
+
+Stream elasticity is likely important as areas with high stream elasticity will have more water moving through the system and less water being stored in the soil. This is shown in the linear regression where there is a negative relationship but more noise than other predictors since these streams are of many sizes and other characterstics. The R^2 value is lower at 22.7% but I still think it could be useful to add to future modeling. 
+
+Low q duration is also was also negatively correlated with baseflow index, but was much flatter (slope = -57.5).
+
+
 
 ## What are three controls on mean flow? 
 
 
+```{r}
 
 
+climate <- read_delim(dat_files[1], delim = ';')
+
+hydro <- read_delim('data/hydro.txt', delim = ';')
+
+soil <- read_delim('data/soil.txt', delim = ';')
+
+topo <- read_delim('data/topo.txt', delim = ';')
+
+all_vars <- inner_join(climate, hydro, by = 'gauge_id')%>%
+  left_join( soil, by = 'gauge_id')%>%
+  left_join(topo, by = "gauge_id")
+
+
+vars <- setdiff(names(all_vars%>% select_if(is.numeric)), c('gauge_id', 'q_mean'))
+
+plots <- map2(.x = "q_mean", .y = vars , create_plot)
+models <- map2(.x = "q_mean", .y = vars , create_model)%>%
+  bind_rows()%>%
+  arrange(r2)
+
+ggpubr::ggarrange(plotlist = plots)
+
+
+ggplot(filter(models, r2 >.25), aes(x = y_term, y = r2))+
+  geom_point()+
+  #make x axis names vertical
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 90))
+
+
+# grab the models for q_mean, q95, aridity
+vars <- c("p_mean", 'q95', 'q5', 'low_prec_freq', 'runoff_ratio')
+
+models%>%
+  filter(y_term %in% vars)
+# only show the plots for these variables
+
+list_p <- map2(.x = "q_mean", .y = vars , create_plot)
+ggpubr::ggarrange(plotlist = list_p)
+
+
+```
+
+Mean flow is primarily controlled by mean precipitation, runoff ratio and q95. This makes sense because areas where precip is higher, we should see more water running off the surface into the streams. This partially controlled by the runoff ratio, which is also highly correlated with q_mean as areas which translate more precip into streamflow would be expected to have higher streamflow. Similarly, we see a positive relationship between q95 and q mean as areas with higher peak flows will likely higher mean flows. However Q95 seems to be less predicitive at higher q_mean than precip is. 
