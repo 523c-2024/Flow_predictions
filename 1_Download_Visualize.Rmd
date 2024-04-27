@@ -7,6 +7,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 library(tidyverse)
+library(GGally)
 
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -67,26 +68,149 @@ download.file('https://gdex.ucar.edu/dataset/camels/file/camels_attributes_v2.0.
 dat_files <- list.files('data',
                         full.names = T)
 
-
-
 climate <- read_delim(dat_files[1], delim = ';')
 
 hydro <- read_delim('data/hydro.txt', delim = ';')
+
+vege <- read_delim("data/vege.txt", delim = ";")
 ```
 
 ## Initial data viz
 
 ```{r}
 
+hydro_vege <- inner_join(hydro, vege, by = "gauge_id") 
+hydro_clim <- inner_join(hydro, climate, by = "gauge_id")
+# inner join so that only ROWS in both datasets remain
+
+# make a dataframe of only runoff ratio (and high q frequency)
+runoff_ratio <- hydro %>% 
+  select("gauge_id", "runoff_ratio")
+high_q_freq <- hydro %>% 
+  select("gauge_id", "high_q_freq")
+q95 <- hydro %>% 
+  select("gauge_id", "q95")
+baseflow <- hydro %>% 
+  select("gauge_id", "baseflow_index")
+meanflow <- hydro %>% 
+  select("gauge_id", "q_mean")
+
+# join only runoff ratio with each dataframe (and high q frequency and q95)
+runoff_vege <- inner_join(runoff_ratio, vege)
+high_q_freq_vege <- inner_join(high_q_freq, vege)
+q95_vege <- inner_join(q95, vege)
+baseflow_vege <- inner_join(baseflow, vege)
+meanflow_vege <- inner_join(meanflow, vege)
+
+runoff_clim <- inner_join(runoff_ratio, climate)
+high_q_freq_clim <- inner_join(high_q_freq, climate)
+q95_clim <- inner_join(q95, climate)
+baseflow_clim <- inner_join(baseflow, climate)
+meanflow_clim <- inner_join(meanflow, climate)
+
+# useful function to visualize everything at once
+
+# runoff ratio compared to all vegetation data
+plot_1 <- runoff_vege %>% 
+  select_if(is.numeric) %>% 
+  ggpairs()
+ggsave(plot = plot_1, filename = "runoff_vegeplot.png", width = 10, height = 8, 
+    units = "in", dpi = 300)
+
+# plot comparing all hydrology data within dataframe
+plot_2 <- hydro %>% 
+  select_if(is.numeric) %>% 
+  ggpairs()
+ggsave(plot = plot_2, filename = "runoff_hydroplot.png", width = 10, height = 8, 
+    units = "in", dpi = 300)
+
+# runoff ratio compared to all climate data
+plot_3 <- runoff_clim %>% 
+  select_if(is.numeric) %>% 
+  ggpairs()
+ggsave(plot = plot_3, filename = "runoff_climplot.png", width = 10, height = 8, 
+    units = "in", dpi = 300)
+
+plot_4 <- high_q_freq_clim %>% 
+  select_if(is.numeric) %>% 
+  ggpairs()
+ggsave(plot = plot_4, filename = "highq_climplot.png", width = 10, height = 8, 
+    units = "in", dpi = 300)
+
+plot_5 <- q95_clim %>% 
+  select_if(is.numeric) %>% 
+  ggpairs()
+ggsave(plot = plot_5, filename = "q95_climplot.png", width = 10, height = 8, 
+    units = "in", dpi = 300)
+# from this plot we can see that q95 is correlated with p mean!
+
+plot_6 <- baseflow_clim %>% 
+  select_if(is.numeric) %>% 
+  ggpairs()
+ggsave(plot = plot_6, filename = "baseflow_climplot.png", width = 10, height = 8, 
+    units = "in", dpi = 300)
+
+plot_7 <- meanflow_vege %>% 
+  select_if(is.numeric) %>% 
+  ggpairs()
+ggsave(plot = plot_7, filename = "meanflow_vegeplot.png", width = 10, height = 8, 
+    units = "in", dpi = 300)
+
+plot_8 <- meanflow_clim %>% 
+  select_if(is.numeric) %>% 
+  ggpairs()
+ggsave(plot = plot_8, filename = "meanflow_climplot.png", width = 10, height = 8, 
+    units = "in", dpi = 300)
+
+```
+
+
+```{r}
+# runoff v q95 linear model
+runoff_q95_mod <- lm(hydro$q95 ~ hydro$runoff_ratio) # lm( y ~ x )
+summary(runoff_q95_mod)
+
+# graph runoff ratio v aridity (logged)
+hydro_clim %>% 
+  ggplot((aes(x = runoff_ratio, y = log10(aridity)))) +
+  geom_point() +
+  geom_smooth(method = "lm", se = F)
+# this looks like a relationship, model below to check
+
+aridity_model <- lm(log10(hydro_clim$aridity) ~ hydro_vege$runoff_ratio) # lm(y ~ x)
+summary(aridity_model)
+
 ```
 
 # Assignment
 
 ## What are three controls on average runoff ratio? 
+From my first comparison, fraction of forest does not seen to have an impact
+on runoff ratio. I thought it would because a greater fraction of forested land
+would imply less runoff, like bare soil as compared to a treed landscape.
+
+When I compared runoff ratio with all factors with the ggpairs function, some options include: 
+Runoff ratio and q95 are linearly correlated - when tested with lm, the R-squared is 0.79.
+Runoff ratio and mean precip are correlated
+Runoff ratio and aridity, low precip frequency, and high precip frequency should be examined more closely. Runoff ratio and aridity are linearly related when aridity is logged, but not closely. The R2 is 0.52.
 
 ## What are three controls on baseflow_index? 
+Bseflow index is correlated with low flow frequency. This makes sense rationally because as baseflow increases, the difference in flow for it to be deemed a low flow day increases. 20% flows on a 10 cfs stream is a reduction of 8 cfs, but 20% of a 100 cfs stream with a reduction of 80 cfs is a much larger flow change and less likely to occur. 
 
 ## What are three controls on mean flow? 
+Mean flow is highly related to q95, which is not surprising. The higher the mean, the higher the 95% percentile. mean flow is also correlated with runoff ratio, which makes sense because mean discharge is in the definition for how runoff ratio is calculated. From the climate dataset, mean flow is related to mean precip with an R2 value of 0.89, this is also not surprising because streamflow is based on precipitation in un-damed watersheds. 
+
+
+# class notes - M 4.22.24
+compare variables by creating plots. Can observe, fit a line and create a model to check
+
+ggplot(stuff)
+geom_point()
+geom_smooth(method = "lm", se = F) to fit a linear line
+
+variable_model <- lm() to create a linear model
+ summary(variable_model)
+
 
 
 
