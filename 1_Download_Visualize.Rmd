@@ -7,11 +7,11 @@ output: html_document
 
 ```{r setup, include=FALSE}
 library(tidyverse)
-<<<<<<< HEAD
+
 library(broom)
-=======
+
 library(GGally)
->>>>>>> cc9960193fe9082e5d94cc2db4f3f6f2a143f480
+
 
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -87,7 +87,7 @@ hydro <- read_delim('data/hydro.txt', delim = ';')
 
 ```{r}
 
-<<<<<<< HEAD
+
 all_vars <- inner_join(climate, hydro, by = 'gauge_id')
 
 create_plot <- function(x, y){
@@ -111,11 +111,11 @@ create_model <- function(x, y){
   output
 
 }
-=======
+
 ggplot(hydro, aes(x = baseflow_index,
                   y = q95)) + 
   geom_point()
->>>>>>> cc9960193fe9082e5d94cc2db4f3f6f2a143f480
+
 
 
 ```
@@ -245,12 +245,62 @@ list_p <- map2(.x = "baseflow_index", .y = vars , create_plot)
 ggpubr::ggarrange(plotlist = list_p)
 ```
 
-Baseflow index seems to be primiarily controlled by low discharge frequency, s6
+Baseflow index seems to be primarily controlled by low discharge frequency, stream elasticity and low q duration. 
+Low q frequency had the highest r^2 value, predicting 74% of points and was negatively correlated with baseflow index. This makes sense for areas where there may be high flows (creating a high q_mean) but is mostly made up by days with low flows, ie return flows. 
+
+Stream elasticity is likely important as areas with high stream elasticity will have more water moving through the system and less water being stored in the soil. This is shown in the linear regression where there is a negative relationship but more noise than other predictors since these streams are of many sizes and other characterstics. The R^2 value is lower at 22.7% but I still think it could be useful to add to future modeling. 
+
+Low q duration is also was also negatively correlated with baseflow index, but was much flatter (slope = -57.5).
 
 
 
 ## What are three controls on mean flow? 
 
 
+```{r}
 
 
+climate <- read_delim(dat_files[1], delim = ';')
+
+hydro <- read_delim('data/hydro.txt', delim = ';')
+
+soil <- read_delim('data/soil.txt', delim = ';')
+
+topo <- read_delim('data/topo.txt', delim = ';')
+
+all_vars <- inner_join(climate, hydro, by = 'gauge_id')%>%
+  left_join( soil, by = 'gauge_id')%>%
+  left_join(topo, by = "gauge_id")
+
+
+vars <- setdiff(names(all_vars%>% select_if(is.numeric)), c('gauge_id', 'q_mean'))
+
+plots <- map2(.x = "q_mean", .y = vars , create_plot)
+models <- map2(.x = "q_mean", .y = vars , create_model)%>%
+  bind_rows()%>%
+  arrange(r2)
+
+ggpubr::ggarrange(plotlist = plots)
+
+
+ggplot(filter(models, r2 >.25), aes(x = y_term, y = r2))+
+  geom_point()+
+  #make x axis names vertical
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 90))
+
+
+# grab the models for q_mean, q95, aridity
+vars <- c("p_mean", 'q95', 'q5', 'low_prec_freq', 'runoff_ratio')
+
+models%>%
+  filter(y_term %in% vars)
+# only show the plots for these variables
+
+list_p <- map2(.x = "q_mean", .y = vars , create_plot)
+ggpubr::ggarrange(plotlist = list_p)
+
+
+```
+
+Mean flow is primarily controlled by mean precipitation, runoff ratio and q95. This makes sense because areas where precip is higher, we should see more water running off the surface into the streams. This partially controlled by the runoff ratio, which is also highly correlated with q_mean as areas which translate more precip into streamflow would be expected to have higher streamflow. Similarly, we see a positive relationship between q95 and q mean as areas with higher peak flows will likely higher mean flows. However Q95 seems to be less predicitive at higher q_mean than precip is. 
