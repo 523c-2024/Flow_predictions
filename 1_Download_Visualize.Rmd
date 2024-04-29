@@ -9,15 +9,14 @@ output: html_document
 library(tidyverse)
 
 knitr::opts_chunk$set(echo = TRUE)
-```
 
+install.packages("GGally")
+library(GGally)
+```
 
 # Data Acquisition
 
-For this assignment we are going to be playing with annually
-aggregated metrics of USGS flow data from the [CAMELS](https://ral.ucar.edu/solutions/products/camels) dataset. This dataset
-has sparked a revolution in machine learning in hydrology. 
-
+For this assignment we are going to be playing with annually aggregated metrics of USGS flow data from the [CAMELS](https://ral.ucar.edu/solutions/products/camels) dataset. This dataset has sparked a revolution in machine learning in hydrology.
 
 ```{r}
 if(!file.exists('data')){
@@ -59,9 +58,7 @@ download.file('https://gdex.ucar.edu/dataset/camels/file/camels_attributes_v2.0.
 
 ```
 
-
 ## Data org
-
 
 ```{r}
 dat_files <- list.files('data',
@@ -72,22 +69,166 @@ dat_files <- list.files('data',
 climate <- read_delim(dat_files[1], delim = ';')
 
 hydro <- read_delim('data/hydro.txt', delim = ';')
+
+soil <- read_delim('data/soil.txt', delim = ';')
+
+geol <- read_delim('data/geol.txt', delim = ';')
 ```
 
 ## Initial data viz
 
 ```{r}
+#baseflow 
+ggplot(hydro, aes(x=baseflow_index, y=q95))+
+  geom_point()
 
+
+#hydroclimate
+climate_q <- inner_join(climate, hydro %>%
+                          select(gauge_id, baseflow_index))
+
+ggplot(climate_q, aes(x=p_mean, y=q95))+
+  geom_point()+
+  geom_smooth(method = "lm", se=F)
+
+p_mean_mod <- lm(q95~p_mean, data=climate_q)
+summary(p_mean_mod)
 ```
+
+the average precip controls 71% of the variation in 195, where every 1mm/day increase in long-term average precip increases the 9
+
+\*r\^2 \> 0.3
+
+correlation ^2^ = r\^2
 
 # Assignment
 
-## What are three controls on average runoff ratio? 
+## What are three controls on average runoff ratio?
 
-## What are three controls on baseflow_index? 
+```{r}
+#climate runoff ratio join
+climate_q <- inner_join(climate, hydro %>%
+                          select(gauge_id, runoff_ratio))
 
-## What are three controls on mean flow? 
+#climate x hydro runoff ratio correlatios plots
+png(filename = "bigclimate.png", width = 10, height = 8, units = "in", res = 300)
+climate_q %>%
+  select_if(is.numeric)%>%
+  ggpairs()
+dev.off() 
+
+#runoff ratio x aridity
+
+ggplot(climate_q, aes(x=runoff_ratio, y=aridity))+
+  geom_point()
+
+#lm rr x aridity
+climate_q_rr_mod <- lm(runoff_ratio~aridity, data=climate_q_rr) 
+summary(climate_q_rr_mod) 
+
+ 
+```
+
+r\^2 = .327
+
+```{r}
+#runoff ratio x low_precip_freq
+ggplot(climate_q, aes(x=runoff_ratio, y= low_prec_freq))+
+  geom_point() 
+
+#lm rr x low precip freq
+climate_q_mod <- lm(runoff_ratio~low_prec_freq, data=climate_q) 
+summary(climate_q_mod) 
+
+```
+
+r\^2 =.527
+
+```{r}
+#runoff ratio x high_precip_freq
+ggplot(climate_q, aes(x=runoff_ratio, y= high_prec_freq))+
+  geom_point() 
+
+#lm rr x high precip freq
+climate_q_mod <- lm(runoff_ratio~high_prec_freq, data=climate_q) 
+summary(climate_q_mod) 
+```
+
+r\^2 = .462
+
+## What are three controls on baseflow_index?
+
+#frac_snow
+
+#p_seasonality
+
+#high_prec_freq
+
+```{r}
+#geol baseflow join
+geol_q <- inner_join(geol, hydro %>%
+                          select(gauge_id, baseflow_index))
+
+#climate x hydro runoff ratio correlatios plots
+png(filename = "biggeol.png", width = 10, height = 8, units = "in", res = 300)
+geol_q %>%
+  select_if(is.numeric)%>%
+  ggpairs()
+dev.off() 
+
+#geol baseflow join
+soil_q <- inner_join(soil, hydro %>%
+                          select(gauge_id, baseflow_index))
+
+#climate x hydro runoff ratio correlatios plots
+png(filename = "bigsoil.png", width = 10, height = 8, units = "in", res = 300)
+soil_q %>%
+  select_if(is.numeric)%>%
+  ggpairs()
+dev.off() 
+
+#climate runoff ratio join
+climate_q <- inner_join(climate, hydro %>%
+                          select(gauge_id, baseflow_index))
+
+#climate x hydro runoff ratio correlatios plots
+png(filename = "bigclimate.png", width = 10, height = 8, units = "in", res = 300)
+climate_q %>%
+  select_if(is.numeric)%>%
+  ggpairs()
+dev.off() 
+
+#baseflow x p_mean
+ggplot(climate_q, aes(x=baseflow_index, y=high_prec_freq))+
+  geom_point()
+
+ climate_q_mod <- lm(baseflow_index~high_prec_freq, data=climate_q) 
+summary(climate_q_mod) 
+```
+
+## What are three controls on mean flow?
+
+#aridity
+
+#pet_mean
+
+#soil_conductivity
+
+```{r}
+climate_q <- inner_join(climate, hydro %>%
+                          select(gauge_id, q_mean))
+
+q_geol <- inner_join(geol, hydro %>%
+                       select(gauge_id, q_mean))
+
+soil_q <- inner_join(soil, hydro %>%
+                       select(gauge_id, q_mean))
+
+png(filename = "bigsoil.png", width = 10, height = 8, units = "in", res = 300)
+soil_q %>%
+  select_if(is.numeric)%>%
+  ggpairs()
+dev.off() 
 
 
-
-
+```
