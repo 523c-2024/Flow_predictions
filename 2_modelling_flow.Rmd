@@ -9,7 +9,10 @@ output: html_document
 
 library(tidyverse)
 knitr::opts_chunk$set(echo = TRUE)
+<<<<<<< HEAD
 
+=======
+>>>>>>> cc9960193fe9082e5d94cc2db4f3f6f2a143f480
 ```
 
 # Modelling Flow
@@ -33,6 +36,7 @@ Please report your R2, slope estimates, and p-value of your model and
 write out your interpretation of these numbers. 
 
 ```{r}
+<<<<<<< HEAD
 model_variables <- inner_join(cq_mf, th_mf)
 ```
 
@@ -110,6 +114,11 @@ p-value - < 2.2e-16
 Applying a log to the slope_mean field yielded similar results to the original model.
 
 
+=======
+
+```
+
+>>>>>>> cc9960193fe9082e5d94cc2db4f3f6f2a143f480
 
 ## Build a CART model to predict flow. 
 
@@ -122,6 +131,7 @@ Read the logic intro above, and the code demo as well, to build a CART model
 version of your lm. Use the code to visualize your CART output. 
 
 ```{r}
+<<<<<<< HEAD
 #library(rpart)
 cart_mod <- rpart(q_mean ~ p_mean + runoff_ratio + high_prec_freq, data = cq, method = "anova")
 
@@ -135,6 +145,8 @@ plot(cart_mod, uniform = TRUE,
      main = "Regression Tree for Mean Flow")
 
 text(cart_mod, use.n = TRUE, all = TRUE, cex = .5)
+=======
+>>>>>>> cc9960193fe9082e5d94cc2db4f3f6f2a143f480
 
 ```
 
@@ -153,4 +165,9 @@ at least into train and test datasets and ideally into train-test-val.
 
 ```{r}
 
+<<<<<<< HEAD
 ```
+=======
+```
+
+>>>>>>> cc9960193fe9082e5d94cc2db4f3f6f2a143f480
