@@ -36,7 +36,6 @@ Please report your R2, slope estimates, and p-value of your model and
 write out your interpretation of these numbers. 
 
 ```{r}
-<<<<<<< HEAD
 model_variables <- inner_join(cq_mf, th_mf)
 ```
 
@@ -77,7 +76,8 @@ p_mean:runoff_ratio:high_prec_freq -8.645e-05
    
 p-value - < 2.2e-16
 
-These results tell us that with a one unit increase of p_mean, q_mean will increase by ####, and that with each increase in slope_mean q_mean will increase by ~.01
+These results tell us that with a one unit increase of p_mean, q_mean will increase by -4.216e-4
+
 The p-value is very low, indicating that the relationship observed between the predictor and dependent variables is significant
 
 
