@@ -1,0 +1,150 @@
+---
+title: "Modelling Flow"
+author: "Matthew Ross"
+date: "2024-04-24"
+output: html_document
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+
+library(tidyverse)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Modelling Flow
+
+Now that we have explored individual correlations between long-term flow
+characteristics and potential drivers of those characteristics (climate,
+soils, etc...), we can start to build out increasingly complex models to
+predict flow characteristics.
+
+# Assignment
+
+## Build a parsimonious linear model
+
+Pick one of the flow characteristics that mosts interests you and use
+the `lm` function to build a parsimonious model that predicts your
+favorite characteristic. What is parsimony? It's a model that is complex
+enough to capture the major controls, but simple enough to be
+understandable. You will need to explore, read, understand the
+differences between a + sign interaction, a ":" interaction and a \*
+interaction in `lm` terminology.
+
+Please report your R2, slope estimates, and p-value of your model and
+write out your interpretation of these numbers.
+
+\*\*I don't have a ton of experience in MLR analyses and I would love to
+learn more with examples in class on Monday!
+
+**Looking at mean flow:**
+
+```{r}
+# putting together dataframe:
+mlr_climq <- inner_join(hydro, climate %>%
+  select(gauge_id, p_mean, ))
+
+# runoff ratio, q95, and p_mean as controls on mean flow:
+mlr_model <- lm(formula = q_mean ~ runoff_ratio + q95 + p_mean, data = mlr_climq)
+
+summary(mlr_model)
+```
+
+**Interpretation of model results:**
+
+-   R\^2 value = 0.9515
+
+-   p value:
+
+    -   runoff_ratio = 6.07e-15
+
+    -   q95 = \<2e-16
+
+    -   p_mean = \<2e-16
+
+-   slopes:
+
+    -   runoff_ratio = 0.988873
+
+    -   q95 = 0.186571
+
+    -   p_mean = 0.302800
+
+**Interpretation:**
+
+The R\^2 value for this model is high at 0.9515, which means that
+approximately 95.15% of the variance in the dependend variable is
+explained by the independent variables. All 3 predictor variables have
+very small p-values, suggesting a highly significant relationship
+between all of the independent/predictor variables (runoff ratio, high
+flow, and mean daily precipitation) and the dependent variable of mean
+flow.
+
+## Build a CART model to predict flow.
+
+Linear models help us both predict and understand drivers of change,
+machine learning can help us understand drivers of change, but as a
+technique it is more suited to accurate predictions. CART or
+Classification and Regression Trees are a nice intermediate between lms
+and ml. Tons of resources for this but [CART
+Logic](https://koalaverse.github.io/machine-learning-in-R/decision-trees.html#cart-software-in-r),
+provides a good conceptual overview, and [CART
+demo](https://www.statmethods.net/advstats/cart.html) provides a good
+enough code demo.
+
+Read the logic intro above, and the code demo as well, to build a CART
+model version of your lm. Use the code to visualize your CART output.
+
+```{r}
+library(rpart)
+
+cart_model <- rpart(formula = q_mean ~ runoff_ratio + q95 + p_mean, method = "anova", data = mlr_climq)
+
+summary(cart_model) # I do not understand the output of this model...
+
+# I got the following code for visualization from the CART Demo link:
+
+# visualizing cart model:
+plotcp(cart_model) # I also do not understand how to interpret this output
+# but it seems like the "Inf" value in the first tree isn't great?
+
+# creating additional plots
+par(mfrow=c(1,2)) # two plots on one page
+rsq.rpart(cart_model) # visualize cross-validation results
+
+
+# plotting the tree
+plot(cart_model, uniform=TRUE,
+   main="Regression Tree for Mean Flow")
+text(cart_model, use.n=TRUE, all=TRUE, cex=.8) # for some reason the top text/part of the tree gets cut off, not sure how to fix this with the base level plot/text functions
+
+# also don't really know how to interpret this - I don't have a ton of experience in stats, regrettably
+
+
+```
+
+\
+
+## Build a RandomForest
+
+CARTs are a single tree, what if we had thousands? Would we get better
+performance (yes!)
+
+The same CART logic site above introduces random forests as well. Please
+read this part of the site and use the code demo to build your own
+RandomForest. Remember, for a RandomForest type model we want to make
+sure we split our data at least into train and test datasets and ideally
+into train-test-val.
+
+```{r}
+library(randomForest)
+
+# need to split the mlr_clim dataset into train and test, but I'm not exactly sure how to do that in an effective way
+
+# What is train-test-val?
+
+# I was thinking that I would use the randomForest package for my analysis, as that seemed to be the most commonly used package for building a randomforest model. I looked at the example code and I wasn't quite able to figure out how to put it into practice with my own code/MLR example. I think that seeing a live example/explanation of the code would be really helpful for me, that's the way that I've found I'm able to grasp concepts the best.
+
+```
