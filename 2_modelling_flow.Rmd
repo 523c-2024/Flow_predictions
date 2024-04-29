@@ -8,6 +8,9 @@ output: html_document
 ```{r setup, include=FALSE}
 
 library(tidyverse)
+library(rpart)
+library(rpart.plot)
+library(yardstick)
 knitr::opts_chunk$set(echo = TRUE)
 
 ```
@@ -58,6 +61,22 @@ ggplot(model_variables, aes(x = high_prec_freq, y = q_mean))+
 test <- lm(q_mean ~ p_mean * high_prec_freq, data = model_variables)
 
 summary(test)
+
+q_mean <- read_delim('data/hydro.txt', delim = ';') %>%
+  select(gauge_id, q_mean) %>%
+  inner_join(read_delim('data/climate.txt', delim = ';')) %>%
+  inner_join(read_delim('data/soil.txt',delim = ';'))
+
+
+q_mean_logs <- q_mean %>%
+  mutate(p_log10 = log10(p_mean),
+         aridlog10 = log10(aridity),
+         q_mean10 = log10(q_mean))
+
+naive_mod <- lm(q_mean10 ~ aridlog10 * p_log10, data = q_mean_logs)
+
+
+
 
 ```
 
@@ -202,6 +221,37 @@ plot(cart_mod, uniform = TRUE,
 
 text(cart_mod, use.n = TRUE, all = TRUE, cex = .5)
 
+
+library(rpart)
+library(rpart.plot)
+library(yardstick)
+q_4 <- q_mean_logs %>%
+  select(q_mean10, p_log10, aridlog10, sand_frac,
+         clay_frac, soil_depth_pelletier) %>%
+  mutate(q_class = cut_number(q_mean10,n = 4)) %>%
+  select(-q_mean10)
+
+train <- q_4 %>%
+  sample_frac(.7)
+
+test <- q_4 %>%
+  anti_join(train)
+
+cart_simple <- rpart(q_class ~., data = train, cp = 0.001,
+                     method = 'class')
+
+
+plot(cart_simple)
+text(cart_simple, cex = 0.8, use.n = TRUE, xpd = TRUE)
+
+
+test$pred <- predict(cart_simple, test, 'class')
+cm <- conf_mat(test, q_class,pred)
+
+autoplot(cm, type = "heatmap") +
+  scale_fill_gradient(low="#D6EAF8",high = "#2E86C1")
+
+accuracy(test,q_class,pred)
 ```
 
 
