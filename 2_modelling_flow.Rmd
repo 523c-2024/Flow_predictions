@@ -12,6 +12,8 @@ editor_options:
 
 library(tidyverse)
 library(rpart)
+library(ggplot2)
+
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
@@ -38,30 +40,100 @@ Please report your R2, slope estimates, and p-value of your model and
 write out your interpretation of these numbers.
 
 ```{r}
+#create a dataframe with combining hydro and climate
+chydro <- inner_join(hydro,climate)
+
 #plot simple relationship
 #create parsimonious model
-p_mod <- lm(q_mean ~ slope_fdc * runoff_ratio * baseflow_index, data = hydro)
+q_mod <- lm(q_mean ~ runoff_ratio * p_mean, data = chydro)
 
 #Get the summary of the model
-summary(p_mod)
+summary(q_mod)
+
+q_mean_logs <- chydro %>%
+  mutate(q_log10=log10(q_mean), runofflog10 = log10(runoff_ratio))
+
+q_mod_log <- lm(q_log10 ~ runofflog10 * p_mean, data = chydro)
+
+ggplot(chydro, aes(x = q_mean, y = runoff_ratio, color = p_mean)) +
+  geom_point() +
+  scale_x_log10() +
+  scale_y_log10() +
+  geom_smooth(method = 'lm')
+```
+
+```{r}
+
+#How Matt did it in class
+
+q_mean <- read_delim('data/hydro.txt', delim = ';') %>%
+  select(gauge_id, q_mean) %>%
+  inner_join(read_delim('data/climate.txt', delim = ';')) %>%
+  inner_join(read_delim('data/soil.txt', delim = ';'))
+
+#building linear model, predicting q_mean as a function of p_mean
+
+names(q_mean)
+
+##this is testing to see if low_prec_timing influences the q_mean and p_mean... 
+naive_mod <- lm(q_mean ~ p_mean * low_prec_timing, data = q_mean)
+
+summary(naive_mod)
+
+##the above model shows us a lot of intereactions that are NOT significant, so you would not want to use this
+
+##if you change the * to + -> you get a change in intercept but not a change in slope
+
+##intercept means the average q_mean without any precip, water_frac or aridity -> interpretation get's increasingly ghard when you add an interpretation variable (* in lm formula). 
+
+##this complicated interaction is why we may want to switch to machine learning... 
+
+#logged data
+q_mean_logs <- q_mean %>%
+  mutate(p_log10=log10(p_mean), aridlog10 = log10(aridity),
+         q_mean10 = log10(q_mean))
+
+naive_mod <- lm(q_mean10 ~ aridlog10 * p_log10, data = q_mean_logs)
+
+ggplot(q_mean, aes(x = p_mean, y = q_mean, color = aridity)) +
+  scale_x_log10() +
+  scale_y_log10() +
+  geom_smooth(method = 'lm')
+
+##this model is working better, but there is still some variation that we are not explaining... 
+
+#to improve the model, check the indicators ands ee what relationship exists
 ```
 
 **Answer:**
 
-Slope Estimate:
+-   Slope Estimates:
 
--   A one-unit increase in **`slope_fdc`** is associated with a decrease
-    of \~0.5330 units in **`q_mean`**
+    -   Intercept: 2.873e-04
 
--   A one-unit increase in **`runoff_ratio`** is associated with an
-    increase of \~0.9667 units in **`q_mean`**.
+    -   runoff_ratio: -1.530e-03
 
--   A one-unit increase in **`baseflow_index`** is associated with a
-    decrease of \~0.3779 units in **`q_mean`**
+    -   p_mean: -9.969e-05
 
-r-squared = 0.8056
+    -   runoff_ratio:p_mean: 1.000e+00
 
-p-value = \< 2e-16
+-   R-squared value:
+
+    -   Multiple R-squared: 1
+
+    -   Adjusted R-squared: 1
+
+-   P-values:
+
+    -   Intercept: 0.4034
+
+    -   runoff_ratio: 0.0358
+
+    -   p_mean: 0.4274
+
+    -   runoff_ratio:p_mean: \< 2.2e-16
+
+-   Interpretation:
 
 ## Build a CART model to predict flow.
 
@@ -79,6 +151,50 @@ Read the logic intro above, and the code demo as well, to build a CART
 model version of your lm. Use the code to visualize your CART output.
 
 ```{r}
+#install.packages('yardstick')
+#install.packages('rpart.plot')
+library(yardstick)
+library(rpart.plot)
+
+#matt's example
+q_4 <- q_mean_logs %>%
+  select(q_mean10, p_log10, aridlog10, sand_frac, clay_frac, soil_depth_pelletier) %>%
+  #to make it a classification tree - converting data from continuous to a class (binning it) -> gives us equal bins in each classification, which is necessary for machine learning
+  mutate(q_class = cut_number(q_mean10, n=4)) %>%
+  select(-q_mean10)
+
+train <- q_4 %>%
+  sample_frac(.7)
+
+test <- q_4 %>%
+  anti_join(train)
+
+cart_simple <- rpart(q_class ~ ., data = train, cp = 0.001, method = 'class')
+
+#visualize table/classes  
+table(q_4$q_class)
+
+#cart_simple <- rpart(q_class ~., data = q_4, cp = 0.01, method = 'anova')
+
+plot(cart_simple)
+text(cart_simple, cex = 0.8, use.n = TRUE, xpd = TRUE)
+
+#how to understand model's performance - comparing predictions with actual data
+q_4$pred <- predict(cart_simple, q_4, 'class')
+cm <- conf_mat(q_4, q_class, pred)
+
+autoplot(cm, type = 'heatmap') +
+  scale_fill_gradient(low = 'grey', high = 'blue')
+
+accuracy(test_d, group, guess)
+
+test$pred <- predict(cart_simple, test, 'class')
+cm <- conf_mat(q_4, q_class, pred)
+```
+
+```{r}
+##need to bin my data using cart_numbers step into 4ish? ... change it to using the chydro dataset, and variables from only the climate, with q_mean from hydro!
+#my cart model
 cart_mod <- rpart(q_mean ~ slope_fdc+runoff_ratio+baseflow_index, data=hydro, method = "anova")
 
 # visualize cross-validation results
@@ -94,8 +210,7 @@ rsq.rpart(cart_mod) # visualize cross-validation results
 plot(cart_mod, uniform=TRUE,
    main="Regression Tree for Mean Flow ")
 
-text(cart_mod, use.n=TRUE, all=TRUE, cex=.5)
-##the titles for my text are not correct on this plot, bit sure why but I haven't been able to figure it out. 
+text(cart_mod, cex = 0.8, use.n = TRUE, xpd = TRUE)
 ```
 
 ## Build a RandomForest
