@@ -9,10 +9,7 @@ output: html_document
 
 library(tidyverse)
 knitr::opts_chunk$set(echo = TRUE)
-<<<<<<< HEAD
 
-=======
->>>>>>> cc9960193fe9082e5d94cc2db4f3f6f2a143f480
 ```
 
 # Modelling Flow
@@ -40,11 +37,11 @@ model_variables <- inner_join(cq_mf, th_mf)
 ```
 
 ```{r}
-png(filename = "bigMeanModelplot.png", width = 10, height = 8, units = "in", res = 300)
-model_variables %>% 
-  select_if(is.numeric) %>% 
-  ggpairs()
-dev.off()
+# png(filename = "bigMeanModelplot.png", width = 10, height = 8, units = "in", res = 300)
+# model_variables %>% 
+#   select_if(is.numeric) %>% 
+#   ggpairs()
+# dev.off()
 ```
 
 ```{r}
@@ -52,13 +49,13 @@ ggplot(model_variables, aes(x = p_mean, y = q_mean))+
   geom_point()+
   geom_smooth(method = "lm", se = F)
 
-ggplot(cq, aes(x = high_prec_freq, y = q_mean))+
+ggplot(model_variables, aes(x = high_prec_freq, y = q_mean))+
   geom_point()+
   geom_smooth(method = "lm", se = F)
 
 #lm(y ~ x1 + x2 + x1:x2)
 
-test <- lm(q_mean ~ p_mean * runoff_ratio * high_prec_freq, data = cq)
+test <- lm(q_mean ~ p_mean * high_prec_freq, data = model_variables)
 
 summary(test)
 
@@ -66,17 +63,14 @@ summary(test)
 
 R2 - 0.8728
 Slope Estimates:
-p_mean                             -4.216e-04
-runoff_ratio                       -6.208e-03
-high_prec_freq                     -7.938e-05
-p_mean:runoff_ratio                 1.002e+00
-p_mean:high_prec_freq               2.097e-05
-runoff_ratio:high_prec_freq         2.944e-04
-p_mean:runoff_ratio:high_prec_freq -8.645e-05
-   
+p_mean                             -2.292096
+high_prec_freq                      0.069741
+p_mean:high_prec_freq              -0.044238
+
 p-value - < 2.2e-16
 
-These results tell us that with a one unit increase of p_mean, q_mean will increase by -4.216e-4
+These results tell us that with a one unit increase of p_mean, q_mean will increase by -2.292096
+and that with with a one unit increase of high_prec_freq, q_mean will increase by .069741
 
 The p-value is very low, indicating that the relationship observed between the predictor and dependent variables is significant
 
@@ -114,6 +108,69 @@ p-value - < 2.2e-16
 Applying a log to the slope_mean field yielded similar results to the original model.
 
 
+```{r}
+###In Class Modelling
+
+q_mean <- inner_join(cq_mf, sh_mf)
+
+q_mean_logs <- q_mean %>% 
+  mutate(p_log10 = log10(p_mean),
+         aridlog10 = log10(aridity),
+         q_mean10 = log10(q_mean),
+         k_10 = log10(soil_conductivity))
+
+
+naive_mod <- lm(q_mean10 ~ aridlog10 * p_log10, data = q_mean_logs)
+  
+summary(naive_mod)
+
+ggplot(q_mean, aes(x = p_mean, y = q_mean, color = aridity))+
+  scale_x_log10()+
+  scale_y_log10()+
+  geom_point()+
+  geom_smooth(method = "lm")
+
+
+hist(log10(q_mean$soil_conductivity))
+```
+
+
+```{r}
+soil_rr <- inner_join(soil,hydro %>% 
+                   select(gauge_id, runoff_ratio))
+
+r_ratio <- inner_join(cq_rr,soil_rr)
+
+
+
+naive_mod2 <- lm(runoff_ratio ~ p_seasonality * soil_porosity , data = r_ratio)
+
+summary(naive_mod2)
+
+
+#this is worse and seems wrong, couldnt log10 p_seasonailty because it has negative values
+
+rr_logs <- r_ratio %>%
+  mutate(porouslog10 = log10(soil_porosity),
+         rr10 = log10(runoff_ratio))
+
+naive_mod3 <- lm(rr10 ~ p_seasonality * porouslog10 , data = rr_logs)
+
+summary(naive_mod3)
+
+```
+
+
+```{r}
+ggplot(r_ratio, aes(x = p_seasonality, y = runoff_ratio, color = soil_porosity))+
+  geom_point()+
+  geom_smooth(method = "lm")
+
+
+```
+
+
+
 =======
 
 ```
@@ -131,7 +188,6 @@ Read the logic intro above, and the code demo as well, to build a CART model
 version of your lm. Use the code to visualize your CART output. 
 
 ```{r}
-<<<<<<< HEAD
 #library(rpart)
 cart_mod <- rpart(q_mean ~ p_mean + runoff_ratio + high_prec_freq, data = cq, method = "anova")
 
@@ -145,8 +201,6 @@ plot(cart_mod, uniform = TRUE,
      main = "Regression Tree for Mean Flow")
 
 text(cart_mod, use.n = TRUE, all = TRUE, cex = .5)
-=======
->>>>>>> cc9960193fe9082e5d94cc2db4f3f6f2a143f480
 
 ```
 
@@ -165,9 +219,6 @@ at least into train and test datasets and ideally into train-test-val.
 
 ```{r}
 
-<<<<<<< HEAD
-```
-=======
+
 ```
 
->>>>>>> cc9960193fe9082e5d94cc2db4f3f6f2a143f480
