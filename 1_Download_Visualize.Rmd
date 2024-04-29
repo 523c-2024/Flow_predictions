@@ -3,6 +3,9 @@ title: "Downloading and Visualizing Camels Data"
 author: "Matthew Ross"
 date: "2024-04-22"
 output: html_document
+editor_options: 
+  markdown: 
+    wrap: 72
 ---
 
 ```{r setup, include=FALSE}
@@ -11,13 +14,12 @@ library(tidyverse)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-
 # Data Acquisition
 
-For this assignment we are going to be playing with annually
-aggregated metrics of USGS flow data from the [CAMELS](https://ral.ucar.edu/solutions/products/camels) dataset. This dataset
-has sparked a revolution in machine learning in hydrology. 
-
+For this assignment we are going to be playing with annually aggregated
+metrics of USGS flow data from the
+[CAMELS](https://ral.ucar.edu/solutions/products/camels) dataset. This
+dataset has sparked a revolution in machine learning in hydrology.
 
 ```{r}
 if(!file.exists('data')){
@@ -59,9 +61,7 @@ download.file('https://gdex.ucar.edu/dataset/camels/file/camels_attributes_v2.0.
 
 ```
 
-
 ## Data org
-
 
 ```{r}
 dat_files <- list.files('data',
@@ -85,13 +85,16 @@ vege <- read_delim('data/vege.txt', delim = ';')
 ```
 
 ## Initial data viz
+
 ### Baseflow
+
 ```{r}
 ggplot(hydro, aes(x = baseflow_index, y = q95))+
   geom_point()
 ```
 
 ### Climate Controls
+
 ```{r}
 cq <- inner_join(climate,hydro)
 
@@ -106,24 +109,15 @@ p_mean_mod <- lm(q95 ~ p_mean, data = cq)
 summary(p_mean_mod)
 
 ```
+
 p_mean strongly controls q95
 
-Average precip (p mean) controls 70% of the variation in q95, where every 1 mm/day increase in average precip increased the q95 by 2.95 mm/d
+Average precip (p mean) controls 70% of the variation in q95, where
+every 1 mm/day increase in average precip increased the q95 by 2.95 mm/d
 
 # Assignment
+
 Baseflow doesnt strongly control q95 in a predicatble way
-```{r}
-#library(GGally)
-
-png(filename = "bigclimateplot.png", width = 10, height = 8, units = "in", res = 300)
-cq_rr %>% 
-  select_if(is.numeric) %>% 
-  ggpairs()
-dev.off()
-```
-
-
-
 
 ```{r}
 long_cq <- cq %>% 
@@ -133,12 +127,25 @@ long_cq <- cq %>%
                names_to = "driver")
 ```
 
-## What are three controls on average runoff ratio? 
-look at potential controls and only report the ones with high r-squared. What we find here will be the basis of our variables when trying to predict mean runoff
+## What are three controls on average runoff ratio?
+
+look at potential controls and only report the ones with high r-squared.
+What we find here will be the basis of our variables when trying to
+predict mean runoff
 
 ```{r}
 cq_rr <- inner_join(climate,hydro %>% 
                    select(gauge_id, runoff_ratio))
+```
+
+```{r}
+library(GGally)
+
+png(filename = "bigrrplot.png", width = 12, height = 10, units = "in", res = 300)
+cq_rr %>% 
+  select_if(is.numeric) %>% 
+  ggpairs()
+dev.off()
 ```
 
 ```{r}
@@ -149,60 +156,88 @@ ggplot(long_cq, aes(value, q95))+
 
 ```{r}
 
-ggplot(cq, aes(x = high_prec_freq, y = runoff_ratio))+
+ggplot(cq_rr, aes(x = p_mean, y = runoff_ratio))+
   geom_point()+
   geom_smooth(method = "lm", se = F)
 
 ```
 
 ```{r}
-high_freq_runoffmod <- lm(runoff_ratio ~ high_prec_freq, data = cq)
+pmean_runoffmod <- lm(runoff_ratio ~ p_mean, data = cq_rr)
+
+summary(pmean_runoffmod)
+
+```
+
+With any one unit increase in p_mean, runoff_ratio can be expected to
+increase by \~.117 A p-value of 2.2e-16 tells us this is a significant
+relationship
+
+###High Precipitation Frequency
+
+```{r}
+
+ggplot(cq_rr, aes(x = high_prec_freq, y = runoff_ratio))+
+  geom_point()+
+  geom_smooth(method = "lm", se = F)
+
+```
+
+```{r}
+high_freq_runoffmod <- lm(runoff_ratio ~ high_prec_freq, data = cq_rr)
 
 summary(high_freq_runoffmod)
 
 ```
-###High Precipitation frequency has an influence over runoff ration with an r-quared of .46 and a change of
 
+With any one unit increase in high_prec_freq, runoff_ratio can be
+expected to decrease by roughly -0.035 A p-value of 2.2e-16 tells us
+this is a significant relationship
+
+###Low Precipitation Frequency
 ```{r}
 
-ggplot(cq, aes(x = low_prec_freq, y = runoff_ratio))+
+ggplot(cq_rr, aes(x = low_prec_freq, y = runoff_ratio))+
   geom_point()+
   geom_smooth(method = "lm", se = F)
 
 ```
 
 ```{r}
-low_freq_runoffmod <- lm(runoff_ratio ~ low_prec_freq, data = cq)
+LowFreq_runoffmod <- lm(runoff_ratio ~ low_prec_freq, data = cq_rr)
 
-summary(low_freq_runoffmod)
+summary(LowFreq_runoffmod)
 
 ```
 
-  scale_x_continuous(trans = "log")+
-  scale_y_continuous(trans = "log")+
+
+With any one unit increase in low_prec_freq, runoff_ratio can be
+expected to decrease by roughly -0.0048 A p-value of 2.2e-16 tells us 
+this is a significant relationship
+
+
+## What are three controls on baseflow_index?
+
+frac_snow p_seasonality high_prec_freq
 
 ```{r}
+cq_bf <- inner_join(climate,hydro %>% 
+                   select(gauge_id, baseflow_index))
 
-ggplot(cq, aes(x = q_mean, y = runoff_ratio))+
-  geom_point()+
-  geom_smooth(method = "lm", se = F)
-
+names(cq_bf)
 ```
 
 ```{r}
-q_mean_runoffmod <- lm(runoff_ratio ~ q_mean, data = cq)
+#library(GGally)
 
-summary(q_mean_runoffmod)
-
+png(filename = "bigbaseflowplot.png", width = 10, height = 8, units = "in", res = 300)
+cq_bf %>% 
+  select_if(is.numeric) %>% 
+  ggpairs()
+dev.off()
 ```
 
-
-
-## What are three controls on baseflow_index? 
-frac_snow
-p_seasonality
-high_prec_freq
-
+###Combining datasets to visualize more relationships
 ```{r}
 gh <- inner_join(geol,hydro %>% 
                    select(gauge_id, baseflow_index))
@@ -218,14 +253,14 @@ names(sh)
 ```
 
 ```{r}
-th <- inner_join(soil,hydro %>% 
+th <- inner_join(topo,hydro %>% 
                    select(gauge_id, baseflow_index))
 
 names(th)
 ```
 
 ```{r}
-vh <- inner_join(soil,hydro %>% 
+vh <- inner_join(vege,hydro %>% 
                    select(gauge_id, baseflow_index))
 
 names(vh)
@@ -234,49 +269,239 @@ names(vh)
 ```{r}
 #library(GGally)
 
-png(filename = "bigbaseflowplot.png", width = 10, height = 8, units = "in", res = 300)
+png(filename = "bigbaseflowplotGH.png", width = 10, height = 8, units = "in", res = 300)
 gh %>% 
   select_if(is.numeric) %>% 
   ggpairs()
 dev.off()
 ```
 
-
 ```{r}
 #library(GGally)
 
-png(filename = "bigbaseflowplot.png", width = 10, height = 8, units = "in", res = 300)
+png(filename = "bigbaseflowplotSH.png", width = 10, height = 8, units = "in", res = 300)
 sh %>% 
   select_if(is.numeric) %>% 
   ggpairs()
 dev.off()
 ```
 
+```{r}
+#library(GGally)
+
+png(filename = "bigbaseflowplotTH.png", width = 10, height = 8, units = "in", res = 300)
+th %>% 
+  select_if(is.numeric) %>% 
+  ggpairs()
+dev.off()
+```
+
+```{r}
+png(filename = "bigbaseflowplotVH.png", width = 10, height = 8, units = "in", res = 300)
+vh %>% 
+  select_if(is.numeric) %>% 
+  ggpairs()
+dev.off()
+```
+
+###Slope_Mean
+```{r}
+
+ggplot(th, aes(x = slope_mean, y = baseflow_index))+
+  geom_point()+
+  geom_smooth(method = "lm", se = F)
+
+```
+
+```{r}
+slope_baseflowmod <- lm(baseflow_index ~ slope_mean, data = th)
+
+summary(slope_baseflowmod)
+
+```
+
+With any one unit increase in slope_mean, baseflow_index can be
+expected to increase by ~0.0013 A p-value of < 2.2e-16 tells us 
+this is a significant relationship
+
+
+###Soil Conductivity
+```{r}
+
+ggplot(sh, aes(x = soil_conductivity, y = baseflow_index))+
+  geom_point()+
+  geom_smooth(method = "lm", se = F)
+
+```
+
+```{r}
+soil_baseflowmod <- lm(baseflow_index ~ soil_conductivity, data = sh)
+
+summary(soil_baseflowmod)
+
+```
+
+
+With any one unit increase in soil conductivity, baseflow_index can be
+expected to increase by ~0.023 A p-value of 8.751e-9 tells us 
+this is a significant relationship
+
+
+
+### frac_snow
+```{r}
+
+ggplot(cq_bf, aes(x = frac_snow, y = baseflow_index))+
+  geom_point()+
+  geom_smooth(method = "lm", se = F)
+
+```
+
+```{r}
+snow_baseflowmod <- lm(baseflow_index ~ frac_snow, data = cq_bf)
+
+summary(snow_baseflowmod)
+
+```
+
+
+With any one unit increase in frac_snow, baseflow_index can be
+expected to increase by ~0.312 A p-value of < 2.2e-16 tells us 
+this is a significant relationship
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## What are three controls on mean flow?
+
+Combining datasets to visualize different factors
+
+```{r}
+gh_mf <- inner_join(geol,hydro %>% 
+                   select(gauge_id, q_mean))
+
+names(gh_mf)
+```
+
+```{r}
+sh_mf <- inner_join(soil,hydro %>% 
+                   select(gauge_id, q_mean))
+
+names(sh_mf)
+```
+
+```{r}
+th_mf <- inner_join(topo,hydro %>% 
+                   select(gauge_id, q_mean))
+
+names(th_mf)
+```
+
+```{r}
+vh_mf <- inner_join(vege,hydro %>% 
+                   select(gauge_id, q_mean))
+
+names(vh_mf)
+```
+
+```{r}
+cq_mf <- inner_join(climate,hydro %>% 
+                   select(gauge_id, q_mean))
+```
 
 ```{r}
 #library(GGally)
 
-png(filename = "bigbaseflowplot.png", width = 10, height = 8, units = "in", res = 300)
-gh %>% 
+png(filename = "bigmeanflowplotCH.png", width = 10, height = 8, units = "in", res = 300)
+cq_mf %>% 
   select_if(is.numeric) %>% 
   ggpairs()
 dev.off()
 ```
 
 
+```{r}
+#library(GGally)
 
-seasonality
-aridity
+png(filename = "bigmeanflowplotTH.png", width = 10, height = 8, units = "in", res = 300)
+th_mf %>% 
+  select_if(is.numeric) %>% 
+  ggpairs()
+dev.off()
+```
 
-#baseflow
-frac_snow
-high_prec_freq
+### p_mean
+```{r}
+
+ggplot(cq_mf, aes(x = p_mean, y = q_mean))+
+  geom_point()+
+  geom_smooth(method = "lm", se = F)
+
+```
+
+```{r}
+pmean_meanflowmod <- lm(q_mean ~ p_mean, data = cq_mf)
+
+summary(pmean_meanflowmod)
+
+```
 
 
-## What are three controls on mean flow? 
-aridity
-pet_mean
-soil_conductivity
+With any one unit increase in p_mean, q_mean can be
+expected to increase by ~0.969 A p-value of < 2.2e-16 tells us 
+this is a significant relationship
 
 
+### low_prec_freq
+```{r}
 
+ggplot(cq_mf, aes(x = low_prec_freq, y = q_mean))+
+  geom_point()+
+  geom_smooth(method = "lm", se = F)
+
+```
+
+```{r}
+lowprec_meanflowmod <- lm(q_mean ~ low_prec_freq, data = cq_mf)
+
+summary(lowprec_meanflowmod)
+
+```
+
+
+With any one unit increase in low_prec_freq, q_mean can be
+expected to decrease by ~0.031 A p-value of < 2.2e-16 tells us 
+this is a significant relationship
+
+
+### slope_mean
+```{r}
+
+ggplot(th_mf, aes(x = slope_mean, y = q_mean))+
+  geom_point()+
+  geom_smooth(method = "lm", se = F)
+
+```
+
+```{r}
+slope_meanflowmod <- lm(q_mean ~ slope_mean, data = th_mf)
+
+summary(slope_meanflowmod)
+
+```
+
+
+With any one unit increase in slope_mean, q_mean can be
+expected to increase by ~0.017 A p-value of < 2.2e-16 tells us 
+this is a significant relationship

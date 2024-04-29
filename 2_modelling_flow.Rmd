@@ -1,0 +1,156 @@
+---
+title: "Modelling Flow"
+author: "Matthew Ross"
+date: "2024-04-24"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+library(tidyverse)
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+# Modelling Flow
+
+Now that we have explored individual correlations between long-term flow 
+characteristics and potential drivers of those characteristics (climate,
+soils, etc...), we can start to build out increasingly complex models
+to predict flow characteristics. 
+
+# Assignment
+
+
+## Build a parsimonious linear model
+
+Pick one of the flow characteristics that mosts interests you and use the `lm`
+function to build a parsimonious model that predicts your favorite characteristic. What is parsimony? It's a model that is complex enough to
+capture the major controls, but simple enough to be understandable. You
+will need to explore, read, understand the differences between a + sign interaction, a ":" interaction and a * interaction in `lm` terminology. 
+
+Please report your R2, slope estimates, and p-value of your model and 
+write out your interpretation of these numbers. 
+
+```{r}
+model_variables <- inner_join(cq_mf, th_mf)
+```
+
+```{r}
+png(filename = "bigMeanModelplot.png", width = 10, height = 8, units = "in", res = 300)
+model_variables %>% 
+  select_if(is.numeric) %>% 
+  ggpairs()
+dev.off()
+```
+
+```{r}
+ggplot(model_variables, aes(x = p_mean, y = q_mean))+
+  geom_point()+
+  geom_smooth(method = "lm", se = F)
+
+ggplot(cq, aes(x = high_prec_freq, y = q_mean))+
+  geom_point()+
+  geom_smooth(method = "lm", se = F)
+
+#lm(y ~ x1 + x2 + x1:x2)
+
+test <- lm(q_mean ~ p_mean * runoff_ratio * high_prec_freq, data = cq)
+
+summary(test)
+
+```
+
+R2 - 0.8728
+Slope Estimates:
+p_mean                             -4.216e-04
+runoff_ratio                       -6.208e-03
+high_prec_freq                     -7.938e-05
+p_mean:runoff_ratio                 1.002e+00
+p_mean:high_prec_freq               2.097e-05
+runoff_ratio:high_prec_freq         2.944e-04
+p_mean:runoff_ratio:high_prec_freq -8.645e-05
+   
+p-value - < 2.2e-16
+
+These results tell us that with a one unit increase of p_mean, q_mean will increase by ####, and that with each increase in slope_mean q_mean will increase by ~.01
+The p-value is very low, indicating that the relationship observed between the predictor and dependent variables is significant
+
+
+###Same model but with the logged p and slope values not entirely sure  
+```{r}
+logged_slope <- model_variables %>% 
+  mutate(log_slope_mean = log(slope_mean)) %>% 
+  mutate(log_p_mean = log(p_mean))
+
+ggplot(logged_slope, aes(x = log_slope_mean, y = q_mean))+
+  geom_point()+
+  geom_smooth(method = "lm", se = F)
+
+ggplot(logged_slope, aes(x = log_p_mean, y = q_mean))+
+  geom_point()+
+  geom_smooth(method = "lm", se = F)
+
+#lm(y ~ x1 + x2 + x1:x2)
+
+test <- lm(q_mean ~ p_mean + log_slope_mean, data = logged_slope)
+
+summary(test)
+```
+
+
+R2 - 0.8611
+
+Slope estimates:
+  p_mean - 0.90938
+  log_slope_mean - 0.32776
+
+p-value - < 2.2e-16
+
+Applying a log to the slope_mean field yielded similar results to the original model.
+
+
+
+## Build a CART model to predict flow. 
+
+Linear models help us both predict and understand drivers of change, machine learning can help us understand drivers of change, but as a technique it is 
+more suited to accurate predictions. CART or Classification and Regression Trees
+are a nice intermediate between lms and ml. Tons of resources for this but
+[CART Logic](https://koalaverse.github.io/machine-learning-in-R/decision-trees.html#cart-software-in-r), provides a good conceptual overview, and [CART demo](https://www.statmethods.net/advstats/cart.html) provides a good enough code demo. 
+
+Read the logic intro above, and the code demo as well, to build a CART model 
+version of your lm. Use the code to visualize your CART output. 
+
+```{r}
+#library(rpart)
+cart_mod <- rpart(q_mean ~ p_mean + runoff_ratio + high_prec_freq, data = cq, method = "anova")
+
+plotcp(cart_mod)
+
+summary(cart_mod)
+
+rsq.rpart(cart_mod)
+
+plot(cart_mod, uniform = TRUE,
+     main = "Regression Tree for Mean Flow")
+
+text(cart_mod, use.n = TRUE, all = TRUE, cex = .5)
+
+```
+
+
+## Build a RandomForest
+
+CARTs are a single tree, what if we had thousands? Would we get better performance (yes!)
+
+The same CART logic site above introduces random forests as well. Please 
+read this part of the site and use the code demo to build your own RandomForest.
+Remember, for a RandomForest type model we want to make sure we split our data
+at least into train and test datasets and ideally into train-test-val. 
+
+
+
+
+```{r}
+
+```
