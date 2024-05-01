@@ -201,29 +201,33 @@ Read the logic intro above, and the code demo as well, to build a CART model
 version of your lm. Use the code to visualize your CART output. 
 
 ```{r}
-#library(rpart)
-cart_mod <- rpart(q_mean ~ p_mean + runoff_ratio + high_prec_freq, data = cq, method = "anova")
-
-plotcp(cart_mod)
-
-summary(cart_mod)
-
-rsq.rpart(cart_mod)
-
-plot(cart_mod, uniform = TRUE,
-     main = "Regression Tree for Mean Flow")
-
-text(cart_mod, use.n = TRUE, all = TRUE, cex = .5)
+# #library(rpart)
+# cart_mod <- rpart(q_mean ~ p_mean + runoff_ratio + high_prec_freq, data = cq, method = "anova")
+# 
+# plotcp(cart_mod)
+# 
+# summary(cart_mod)
+# 
+# rsq.rpart(cart_mod)
+# 
+# plot(cart_mod, uniform = TRUE,
+#      main = "Regression Tree for Mean Flow")
+# 
+# text(cart_mod, use.n = TRUE, all = TRUE, cex = .5)
 
 
 library(rpart)
 library(rpart.plot)
 library(yardstick)
+
+set.seed(22157)
+
 q_4 <- q_mean_logs %>%
-  select(q_mean10, p_log10, aridlog10, sand_frac,
-         clay_frac, soil_depth_pelletier) %>%
+  select(q_mean10, p_log10, aridlog10, soil_porosity,
+         soil_depth_pelletier, max_water_content, frac_snow, pet_mean) %>%
   mutate(q_class = cut_number(q_mean10,n = 4)) %>%
-  select(-q_mean10)
+  select(-q_mean10) %>% 
+  na.omit()
 
 train <- q_4 %>%
   sample_frac(.7)
@@ -264,9 +268,58 @@ at least into train and test datasets and ideally into train-test-val.
 ```{r}
 
 ?randomForest
+set.seed(22157)
+rf_class <- randomForest(q_class ~ ., data = train,
+                         maxnodes = 9,
+                         nPerm = 2,
+                         mtry = 5,
+                         importance = T)
 
+(rf_class)
 
+test$rf_pred <- predict(rf_class, test)
+
+cm_rf <- conf_mat(test, q_class,rf_pred)
+
+autoplot(cm_rf, type = "heatmap") +
+  scale_fill_gradient(low = "#D6EAF8", high = "#2E86C1")
+
+accuracy(test,q_class,rf_pred)
 
 
 ```
+
+
+####Classification Forest
+```{r}
+
+q_rf <- q_mean_logs %>%
+  select(q_mean10, p_log10, aridlog10, soil_porosity,
+         soil_depth_pelletier, max_water_content, organic_frac, frac_snow, pet_mean) %>%
+  na.omit()
+
+train_cont <- q_rf %>%
+  sample_frac(.7)
+
+test_cont <- q_rf %>%
+  anti_join(train)
+
+rf_numer <- randomForest(q_mean10 ~ ., data = train_cont,
+                         maxnodes = 7,
+                         nPerm = 5,
+                         mtry = 4,
+                         importance = T)
+
+rf_numer$importance
+
+test$cont$rf_pred <- predict(rf_numer, test_cont)
+
+ggplot(test_cont, aes(x = q_mean10, y = rf_pred))+
+  geom_point()+
+  geom_abline(slope = 1)
+
+
+```
+
+
 
