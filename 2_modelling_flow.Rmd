@@ -45,22 +45,32 @@ chydro <- inner_join(hydro,climate)
 
 #plot simple relationship
 #create parsimonious model
-q_mod <- lm(q_mean ~ runoff_ratio * p_mean, data = chydro)
+r_mod <- lm(runoff_ratio ~ frac_snow * p_mean, data = chydro)
 
 #Get the summary of the model
-summary(q_mod)
+summary(r_mod)
 
-q_mean_logs <- chydro %>%
-  mutate(q_log10=log10(q_mean)) %>%
-  mutate(runofflog10 = log10(runoff_ratio))
-
-q_mod_log <- lm(q_log10 ~ runofflog10 * p_mean, data = chydro)
-
-ggplot(chydro, aes(x = q_mean, y = runoff_ratio, color = p_mean)) +
+ggplot(chydro, aes(x = runoff_ratio, y = frac_snow, color = p_mean)) +
   geom_point() +
   scale_x_log10() +
   scale_y_log10() +
   geom_smooth(method = 'lm')
+
+#logged data
+r_logs <- chydro %>%
+  mutate(runoff_log=log10(runoff_ratio), p_log = log10(p_mean)) %>%
+  na.omit() 
+
+
+r_log_mod <- lm(runoff_log ~ frac_snow * p_log, data = r_logs)
+
+ggplot(r_logs, aes(x = runoff_log, y = frac_snow, color = p_mean)) +
+  geom_point() +
+  scale_x_log10() +
+  scale_y_log10() +
+  geom_smooth(method = 'lm')
+
+summary(r_log_mod)
 ```
 
 ```{r}
@@ -110,31 +120,45 @@ ggplot(q_mean, aes(x = p_mean, y = q_mean, color = aridity)) +
 
 -   Slope Estimates:
 
-    -   Intercept: 2.873e-04
+    -   Intercept: -1.42623
 
-    -   runoff_ratio: -1.530e-03
+    -   frac_snow: 1.19944
 
-    -   p_mean: -9.969e-05
+    -   p_log: 1.64662
 
-    -   runoff_ratio:p_mean: 1.000e+00
+    -   frac_snow:p_log: -1.09107
 
--   R-squared value:
+-   R-squared Value:
 
-    -   Multiple R-squared: 1
+    -   Multiple R-squared: 0.6716
 
-    -   Adjusted R-squared: 1
+    -   Adjusted R-squared: 0.6701
 
 -   P-values:
 
-    -   Intercept: 0.4034
+    -   Intercept: \< 2e-16
 
-    -   runoff_ratio: 0.0358
+    -   frac_snow: \< 2e-16
 
-    -   p_mean: 0.4274
+    -   p_log: \< 2e-16
 
--   runoff_ratio:p_mean: \< 2.2e-16
+    -   frac_snow:p_log: 4.8e-06
 
-Interpretation:
+Interpretation of results:
+
+These results indicate a significant linear relationship between the
+predictors ( frac_snow and log_precip_mean) and the runoff ratio as a
+response variable. When frac_snow and p_log are both zero, runoff_ratio
+is estimated to be approximately -1.43.
+
+For every one unit increase of frac_snow, runoff_ratio increases by \~
+1.20 units. For every one unit increase of p_log, runoff ratio increases
+by \~ 1.65 units. As p_log increases, the impact of frac_snow on runoff
+ratio decreases by -1.09 units.
+
+The r-squared value indicates that 67.16% of the variance of the
+response variable (runoff ratio) is explained by the frac_snow and p_log
+values.
 
 ## Build a CART model to predict flow.
 
@@ -158,11 +182,15 @@ library(yardstick)
 library(rpart.plot)
 
 #matt's example
+
+set.seed(556749)
+
 q_4 <- q_mean_logs %>%
-  select(q_mean10, p_log10, aridlog10, sand_frac, clay_frac, soil_depth_pelletier) %>%
+  select(q_log10, p_log10, aridlog10, sand_frac, clay_frac, soil_depth_pelletier) %>%
   #to make it a classification tree - converting data from continuous to a class (binning it) -> gives us equal bins in each classification, which is necessary for machine learning
-  mutate(q_class = cut_number(q_mean10, n=4)) %>%
-  select(-q_mean10)
+  mutate(q_class = cut_number(q_log10, n=4)) %>%
+  select(-q_log10) %>% 
+  na.omit()
 
 train <- q_4 %>%
   sample_frac(.7)
@@ -198,11 +226,14 @@ My Cart Model
 ```{r}
 
 #create dataset
-c_data <- q_mean_logs %>%
-   select(q_log10, p_mean, runofflog10, frac_snow, low_prec_freq, low_q_dur ) %>%
+
+set.seed(564739)
+
+c_data <- r_logs %>%
+   select(runoff_ratio, p_log, frac_snow, aridity, low_prec_freq, low_q_dur) %>%
   #to make it a classification tree - converting data from continuous to a class (binning it) -> gives us equal bins in each classification, which is necessary for machine learning
-  mutate(q_class = cut_number(q_log10, n=4)) %>%
-  select(-q_log10)
+  mutate(r_class = cut_number(runoff_ratio, n=4)) %>%
+  select(-runoff_ratio)
   
 
 train <- c_data %>%
@@ -211,10 +242,10 @@ train <- c_data %>%
 test <- c_data %>%
   anti_join(train)
 
-cart_simple_1 <- rpart(q_class ~ ., data = train, cp = 0.001, method = 'class')
+cart_simple_1 <- rpart(r_class ~ ., data = train, cp = 0.001, method = 'class')
 
 #visualize table/classes  
-table(c_data$q_class)
+table(c_data$r_class)
 
 
 plot(cart_simple_1)
@@ -222,7 +253,7 @@ text(cart_simple_1, cex = 0.8, use.n = TRUE, xpd = TRUE)
 
 #how to understand model's performance - comparing predictions with actual data
 c_data$pred <- predict(cart_simple_1, c_data, 'class')
-cm_1 <- conf_mat(c_data, q_class, pred)
+cm_1 <- conf_mat(c_data, r_class, pred)
 
 autoplot(cm_1, type = 'heatmap') +
   scale_fill_gradient(low = 'grey', high = 'blue')
@@ -245,5 +276,119 @@ sure we split our data at least into train and test datasets and ideally
 into train-test-val.
 
 ```{r}
+library(randomForest)
 
+## matt's example
+rf_class <- randomForest(q_class ~ ., data = train,
+                         maxnodes = 9,
+                         nPerm = 2,
+                         mtry = 5,
+                         #add importance level to model... 
+                         importance = T)
+
+(rf_class)
+
+test$rf_pred <- predict(rf_class, test)
+
+cm_rf <- conf_mat(test, q_class, rf_pred)
+
+autoplot(cm_rf, type = "heatmap") +
+  scale_fill_gradient(low = "#D6EAF8", high = "#2E86C1")
+
+#how to see the accuracy -> higher estimate number (closer to 1), the better the predictive model
+accuracy(test, q_class, rf_pred)
+```
+
+ways to improve model - add more variables (#1 way), add variable
+importance to randomForest() function (... importance = T), can remove
+variables that don't do anything (are not significant...) -\> do lots of
+these iterations to see how the RandomForest model runs best!
+
+a critical thing to think about -\> randdomForest is RANDOM sampling...
+so it is not reproducable. So, you need to do a set.seed(), so every
+time it samples a fraction, its the same fraction... the number in
+set.seed() needs to be any random number
+
+can also add maxnodes = 9 into random forest model, nPerm (number of
+permutations, i.e. how many times the model runs), and mtry = squareroot
+of number of columns (do the square root of the number of columns, or
+make it bigger than that number to improve it)
+
+```{r}
+##continuous predictor example
+
+my_rf <- q_mean_logs %>%
+   select(q_log10, p_mean, frac_snow, soil_porosity, soil_conductivity, clay_frac, max_water_content) %>%
+  mutate(q_class = cut_number(q_log10, n=4)) %>%
+  select(-q_log10) %>%
+  na.omit()
+
+train_cont <- q_4 %>%
+  sample_frac(.7)
+
+test_cont <- q_4 %>%
+  anti_join(train)
+
+rf_numer <- randomForest(q_class ~ ., data = train,
+                         maxnodes = 9,
+                         nPerm = 2,
+                         mtry = 5,
+                         #add importance level to model... 
+                         importance = T)
+
+(rf_class)
+
+test_cont$rf_pred <- predict(rf_numer, test_cont)
+train_cont$rf_pred <- pred(rf_numer, train_cont)
+
+cm_rf <- conf_mat(test, q_class, rf_pred)
+
+ggplot(test_cont, aes(x = q_log10, y = rd_pred)) +
+  geom_point() +
+  geom_abline(slope = 1)
+
+##want to minimize the distance between the test and train sets... 
+cor(test_cont$rf_pred, test_cont$q_mean10)^2
+cor(train_cont$rf_pred, test_cont$q_mean10)^2
+##if train set results are close to 100%, you're over training... 
+```
+
+```{r}
+#my randomForest model
+library(randomForest)
+
+my_rf <- r_logs%>%
+  select(runoff_ratio, frac_snow, p_log, aridity, low_prec_dur, low_prec_freq) %>%
+  #to make it a classification tree - converting data from continuous to a class (binning it) -> gives us equal bins in each classification, which is necessary for machine learning
+  mutate(r_class = cut_number(runoff_ratio, n=4)) %>%
+  select(-runoff_ratio) %>% 
+  na.omit()
+
+train_cont <- my_rf %>%
+  sample_frac(.7)
+
+test_cont <- my_rf %>%
+  anti_join(train)
+
+rf_numer_2 <- randomForest(r_class ~ ., data = train,
+                         maxnodes = 9,
+                         nPerm = 2,
+                         mtry = 5,
+                         #add importance level to model... 
+                         importance = T)
+
+(rf_numer_2)
+
+test_cont$rf_pred <- predict(rf_numer_2, test_cont)
+train_cont$rf_pred <- predict(rf_numer_2, train_cont)
+
+cm_rf <- conf_mat(test, r_class, rf_pred)
+
+ggplot(test_cont, aes(x = runoff_ratio, y = rd_pred)) +
+  geom_point() +
+  geom_abline(slope = 1)
+##want to minimize the distance between the test and train sets... 
+cor(test_cont$rf_pred, test_cont$runoff_ratio)^2
+cor(train_cont$rf_pred, test_cont$runoff_ratio)^2
+##if train set results are close to 100%, you're over training... 
 ```
