@@ -1,0 +1,127 @@
+---
+title: "Modelling Flow"
+author: "Matthew Ross"
+date: "2024-04-24"
+output: html_document
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+
+library(tidyverse)
+library(rpart)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Modelling Flow
+
+Now that we have explored individual correlations between long-term flow
+characteristics and potential drivers of those characteristics (climate,
+soils, etc...), we can start to build out increasingly complex models to
+predict flow characteristics.
+
+# Assignment
+
+## Build a parsimonious linear model
+
+Pick one of the flow characteristics that mosts interests you and use
+the `lm` function to build a parsimonious model that predicts your
+favorite characteristic. What is parsimony? It's a model that is complex
+enough to capture the major controls, but simple enough to be
+understandable. You will need to explore, read, understand the
+differences between a + sign interaction, a ":" interaction and a \*
+interaction in `lm` terminology.
+
+Please report your R2, slope estimates, and p-value of your model and
+write out your interpretation of these numbers.
+
+```{r}
+
+#create parsimonious model
+slope_mod <- lm(q_mean ~ slope_fdc * runoff_ratio * baseflow_index, data = hydro)
+
+#I don't think this is the correct way to plot the parsimonious function 
+long_hydro <- hydro %>%
+  select_if(is.numeric) %>%
+  #selecting only the columns I want, had to do it this way because the order was weird
+  select(-c(q5, zero_q_freq, hfd_mean, high_q_freq, high_q_dur, low_q_freq, low_q_dur)) %>%
+  pivot_longer(cols = q_mean:stream_elas,
+               values_to = 'value',
+               names_to = 'driver')
+
+#plotting
+ggplot(long_hydro, aes(value,
+                    q95)) +
+  geom_point() +
+  facet_grid(~driver,
+             scales = 'free')
+
+# Get the summary of the model
+summary(slope_mod)
+```
+
+```{r}
+##parsimonious model
+#predict values using the model
+hydro_predicted <- hydro %>%
+  mutate(q_mean_predicted = predict(slope_mod, newdata = .))
+
+#combine predicted value with original values
+hydro_combined <- bind_cols(hydro, hydro_predicted)
+
+#plot - not working due to naming issues of variables
+ggplot(hydro, aes(x = slope_fdc, y = q_mean)) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = y ~ x * runoff_ratio * baseflow_index, se = FALSE, color = "red") +
+  labs(title = "Parsimonious Linear Model",
+       x = "Slope FDC",
+       y = "Q Mean")
+```
+
+Answer:
+
+slope estimates = 4.7278
+
+r-squared = 0.2361
+
+p-value = \< 2e-16
+
+The slope controls \~24% of the variation in q95, where 1-unit increase,
+q95 is predicted to increase by 4.73 mm. This is a modest linear
+correlation.
+
+## Build a CART model to predict flow.
+
+Linear models help us both predict and understand drivers of change,
+machine learning can help us understand drivers of change, but as a
+technique it is more suited to accurate predictions. CART or
+Classification and Regression Trees are a nice intermediate between lms
+and ml. Tons of resources for this but [CART
+Logic](https://koalaverse.github.io/machine-learning-in-R/decision-trees.html#cart-software-in-r),
+provides a good conceptual overview, and [CART
+demo](https://www.statmethods.net/advstats/cart.html) provides a good
+enough code demo.
+
+Read the logic intro above, and the code demo as well, to build a CART
+model version of your lm. Use the code to visualize your CART output.
+
+```{r}
+
+```
+
+## Build a RandomForest
+
+CARTs are a single tree, what if we had thousands? Would we get better
+performance (yes!)
+
+The same CART logic site above introduces random forests as well. Please
+read this part of the site and use the code demo to build your own
+RandomForest. Remember, for a RandomForest type model we want to make
+sure we split our data at least into train and test datasets and ideally
+into train-test-val.
+
+```{r}
+
+```
