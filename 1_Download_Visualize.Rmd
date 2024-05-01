@@ -103,7 +103,7 @@ ggplot(hydro, aes(x = baseflow_index, y = q95))+
 ### Climate Controls
 
 ```{r}
-cq <- inner_join(climate,hydro)
+cq_1 <- inner_join(climate,hydro)
 
 names(cq)
 
