@@ -355,7 +355,6 @@ cor(train_cont$rf_pred, test_cont$q_mean10)^2
 
 ```{r}
 #my randomForest model
-library(randomForest)
 
 my_rf <- r_logs%>%
   select(runoff_ratio, frac_snow, p_log, aridity, low_prec_dur, low_prec_freq) %>%
