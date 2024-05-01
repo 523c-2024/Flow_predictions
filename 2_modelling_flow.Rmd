@@ -9,7 +9,7 @@ output: html_document
 
 library(tidyverse)
 knitr::opts_chunk$set(echo = TRUE)
-
+library(randomForest)
 ```
 
 # Modelling Flow
@@ -171,12 +171,6 @@ ggplot(r_ratio, aes(x = p_seasonality, y = runoff_ratio, color = soil_porosity))
 
 
 
-=======
-
-```
-
->>>>>>> cc9960193fe9082e5d94cc2db4f3f6f2a143f480
-
 ## Build a CART model to predict flow. 
 
 Linear models help us both predict and understand drivers of change, machine learning can help us understand drivers of change, but as a technique it is 
@@ -218,6 +212,10 @@ at least into train and test datasets and ideally into train-test-val.
 
 
 ```{r}
+
+?randomForest
+
+
 
 
 ```
