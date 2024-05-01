@@ -7,10 +7,9 @@ output: html_document
 
 ```{r setup, include=FALSE}
 library(tidyverse)
+library(GGally)
 
 knitr::opts_chunk$set(echo = TRUE)
-
-install.packages("GGally")
 library(GGally)
 ```
 
@@ -77,15 +76,17 @@ geol <- read_delim('data/geol.txt', delim = ';')
 
 ## Initial data viz
 
+### Baseflow
+
 ```{r}
+
+#hydroclimate
+climate_q <- inner_join(climate, hydro %>%
+                          select(gauge_id, q95))
 #baseflow 
 ggplot(hydro, aes(x=baseflow_index, y=q95))+
   geom_point()
 
-
-#hydroclimate
-climate_q <- inner_join(climate, hydro %>%
-                          select(gauge_id, baseflow_index))
 
 ggplot(climate_q, aes(x=p_mean, y=q95))+
   geom_point()+
@@ -95,11 +96,61 @@ p_mean_mod <- lm(q95~p_mean, data=climate_q)
 summary(p_mean_mod)
 ```
 
-the average precip controls 71% of the variation in 195, where every 1mm/day increase in long-term average precip increases the 9
-
 \*r\^2 \> 0.3
 
 correlation ^2^ = r\^2
+
+```{r}
+
+ggplot(hydro, aes(x = baseflow_index,y = q95)) + 
+  geom_point()
+
+```
+
+Baseflow doesn't strongly control Q95 in a predictable way.
+
+### Climate controls
+
+```{r}
+
+cq <- inner_join(climate, hydro %>%
+                   select(gauge_id, q95))
+
+
+
+ggplot(cq, aes(x = p_mean, y = q95)) + 
+  geom_point() + 
+  geom_smooth(method = 'lm', se = F)
+
+p_mean_mod <- lm(q95 ~ p_mean, data = cq)
+
+```
+
+#### All at once
+
+```{r}
+
+png(filename = 'bigclimeplot.png', width = 10, height = 8, units = 'in', res = 300)
+cq %>%
+  select_if(is.numeric) %>%
+  ggpairs()
+dev.off()
+
+
+long_cq <- cq %>%
+  select_if(is.numeric) %>%
+  pivot_longer(cols = p_mean:low_prec_dur,
+               values_to = 'value',
+               names_to = 'driver')
+
+ggplot(long_cq, aes(value,
+                    q95)) +
+  geom_point() +
+  facet_grid(~driver,
+             scales = 'free')
+```
+
+The average precip (p_mean) controls 71% of the variation in 195, where every 1 mm/day increase in long-term average precip increases the q95 by 2.95 mm/day.
 
 # Assignment
 
@@ -123,13 +174,15 @@ ggplot(climate_q, aes(x=runoff_ratio, y=aridity))+
   geom_point()
 
 #lm rr x aridity
-climate_q_rr_mod <- lm(runoff_ratio~aridity, data=climate_q_rr) 
-summary(climate_q_rr_mod) 
+climate_q_mod <- lm(runoff_ratio~aridity, data=climate_q) 
+summary(climate_q_mod) 
 
  
 ```
 
 r\^2 = .327
+
+The aridity factor (aridity) explains 32.84% of the variability in runoff ratio, with every unit increase in aridity decreasing the runoff ratio by 0.21707, as determined by the linear regression model (p \< 2e-16).
 
 ```{r}
 #runoff ratio x low_precip_freq
@@ -144,6 +197,8 @@ summary(climate_q_mod)
 
 r\^2 =.527
 
+The frequency of low precipitation events (low_prec_freq) accounts for 52.69% of the variability in runoff ratio, with every increase in the frequency of low precipitation events by one unit leading to a decrease in the runoff ratio by 0.0048183, as determined by the linear regression model (p \< 2e-16).
+
 ```{r}
 #runoff ratio x high_precip_freq
 ggplot(climate_q, aes(x=runoff_ratio, y= high_prec_freq))+
@@ -156,31 +211,27 @@ summary(climate_q_mod)
 
 r\^2 = .462
 
+The frequency of high precipitation events (high_prec_freq) explains 46.27% of the variability in runoff ratio, with each unit increase in the frequency of high precipitation events leading to a decrease in the runoff ratio by 0.034879, as determined by the linear regression model (p \< 2e-16).
+
 ## What are three controls on baseflow_index?
-
-#frac_snow
-
-#p_seasonality
-
-#high_prec_freq
 
 ```{r}
 #geol baseflow join
 geol_q <- inner_join(geol, hydro %>%
                           select(gauge_id, baseflow_index))
 
-#climate x hydro runoff ratio correlatios plots
+#geol x hydro runoff ratio correlatios plots
 png(filename = "biggeol.png", width = 10, height = 8, units = "in", res = 300)
 geol_q %>%
   select_if(is.numeric)%>%
   ggpairs()
 dev.off() 
 
-#geol baseflow join
+#soil baseflow join
 soil_q <- inner_join(soil, hydro %>%
                           select(gauge_id, baseflow_index))
 
-#climate x hydro runoff ratio correlatios plots
+#soil x hydro runoff ratio correlatios plots
 png(filename = "bigsoil.png", width = 10, height = 8, units = "in", res = 300)
 soil_q %>%
   select_if(is.numeric)%>%
@@ -198,37 +249,99 @@ climate_q %>%
   ggpairs()
 dev.off() 
 
-#baseflow x p_mean
-ggplot(climate_q, aes(x=baseflow_index, y=high_prec_freq))+
-  geom_point()
-
- climate_q_mod <- lm(baseflow_index~high_prec_freq, data=climate_q) 
-summary(climate_q_mod) 
-```
-
-## What are three controls on mean flow?
-
-#aridity
-
-#pet_mean
-
-#soil_conductivity
-
-```{r}
-climate_q <- inner_join(climate, hydro %>%
-                          select(gauge_id, q_mean))
-
-q_geol <- inner_join(geol, hydro %>%
-                       select(gauge_id, q_mean))
-
-soil_q <- inner_join(soil, hydro %>%
-                       select(gauge_id, q_mean))
-
-png(filename = "bigsoil.png", width = 10, height = 8, units = "in", res = 300)
-soil_q %>%
+#hydro x hydro
+png(filename = "bighydro.png", width = 10, height = 8, units = "in", res = 300)
+hydro %>%
   select_if(is.numeric)%>%
   ggpairs()
 dev.off() 
 
 
+#baseflow index x low discharge frequency
+ggplot(hydro, aes(x=baseflow_index, y= low_q_freq))+
+  geom_point() 
+
+hydro_mod <- lm(baseflow_index~low_q_freq, data=hydro) 
+summary(hydro_mod) 
 ```
+
+r\^2 = .738
+
+The frequency of low streamflow events (low_q_freq) explains 73.81% of the variability in baseflow index, with each increase in the frequency of low streamflow events by one unit resulting in a decrease in the baseflow index by 0.001697, as determined by the linear regression model (p \< 2e-16).
+
+```{r}
+#baseflow index x high discharge frequency
+ggplot(hydro, aes(x=baseflow_index, y= high_q_freq))+
+  geom_point() 
+
+hydro_mod <- lm(baseflow_index~high_q_freq, data=hydro) 
+summary(hydro_mod) 
+```
+
+r\^2 = .397
+
+The frequency of high streamflow events (high_q_freq) accounts for 39.72% of the variability in baseflow index, with each increase in the frequency of high streamflow events by one unit resulting in a decrease in the baseflow index by 0.0035214, as determined by the linear regression model (p \< 2e-16).
+
+```{r}
+#baseflow index x runoff ratio
+ggplot(hydro, aes(x=baseflow_index, y= runoff_ratio))+
+  geom_point() 
+
+hydro_mod <- lm(baseflow_index~runoff_ratio, data=hydro) 
+summary(hydro_mod) 
+```
+
+The runoff ratio explains 11.92% of the variability in baseflow index, with each unit increase in runoff ratio leading to an increase in the baseflow index by 0.24046, as determined by the linear regression model (p \< 2e-16).
+
+## What are three controls on mean flow?
+
+```{r}
+#climate x mean flow 
+climate_q <- inner_join(climate, hydro %>%
+                          select(gauge_id, q_mean))
+
+#climate x hydro mean flow correlatios plots
+png(filename = "bigclimate.png", width = 10, height = 8, units = "in", res = 300)
+climate_q %>%
+  select_if(is.numeric)%>%
+  ggpairs()
+dev.off() 
+
+#mean flow x aridity
+ggplot(climate_q, aes(x=q_mean, y= aridity))+
+  geom_point() 
+
+hydro_mod <- lm(aridity~q_mean, data=climate_q) 
+summary(hydro_mod) 
+
+```
+
+r\^2= .338
+
+The mean flow (q_mean) accounts for 33.85% of the variability in aridity, with every unit increase in mean flow resulting in a decrease in aridity by 0.23217, as determined by the linear regression model (p \< 2e-16).
+
+```{r}
+#mean flow x mean precip
+ggplot(climate_q, aes(x=q_mean, y= p_mean))+
+  geom_point() 
+
+hydro_mod <- lm(p_mean~q_mean, data=climate_q) 
+summary(hydro_mod) 
+```
+
+r\^=.786
+
+The mean flow (q_mean) explains 78.5% of the variability in mean precipitation (p_mean), with every unit increase in mean flow leading to an increase in mean precipitation by 0.81095, as determined by the linear regression model (p \< 2e-16).
+
+```{r}
+#mean flow x high precip freq
+ggplot(climate_q, aes(x=q_mean, y= high_prec_freq))+
+  geom_point()  
+
+hydro_mod <- lm(high_prec_freq~q_mean, data=climate_q) 
+summary(hydro_mod) 
+```
+
+r\^2 = .4472
+
+The mean flow (q_mean) explains 44.72% of the variability in the frequency of high precipitation events (high_prec_freq), with every unit increase in mean flow leading to a decrease in the frequency of high precipitation events by 1.9714, as determined by the linear regression model (p \< 2e-16).

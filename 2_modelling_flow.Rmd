@@ -1,0 +1,181 @@
+---
+title: "Modelling Flow"
+author: "Matthew Ross"
+date: "2024-04-24"
+output: html_document
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+install.packages('rpart.plot')
+install.packages('yardstick')
+library(tidyverse)
+library(rpart)
+library(rpart.plot)
+library(yardstick)
+library(randomForest)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Modelling Flow
+
+Now that we have explored individual correlations between long-term flow
+characteristics and potential drivers of those characteristics (climate,
+soils, etc...), we can start to build out increasingly complex models to
+predict flow characteristics.
+
+# Assignment
+
+## Build a parsimonious linear model
+
+Pick one of the flow characteristics that mosts interests you and use
+the `lm` function to build a parsimonious model that predicts your
+favorite characteristic. What is parsimony? It's a model that is complex
+enough to capture the major controls, but simple enough to be
+understandable. You will need to explore, read, understand the
+differences between a + sign interaction, a ":" interaction and a \*
+interaction in `lm` terminology.
+
+Please report your R2, slope estimates, and p-value of your model and
+write out your interpretation of these numbers.
+
+```{r}
+runoff_ratio <- read_delim('data/hydro.txt', delim = ';') %>%
+  select(gauge_id, runoff_ratio) %>%
+  inner_join(read_delim('data/climate.txt', delim = ';')) %>%
+  inner_join(read_delim('data/soil.txt',delim = ';'))
+
+
+runoff_ratio_logs <- runoff_ratio %>%
+  mutate(p_log10 = log10(p_mean),
+         aridlog10 = log10(aridity),
+         runoff_ratio10 = log10(runoff_ratio))
+
+rr_mod <- lm(runoff_ratio10 ~ aridlog10 * p_log10, data = runoff_ratio_logs)
+summary(rr_mod)
+```
+
+The linear regression model indicates that both aridity (measured on a
+logarithmic scale) and precipitation (log-transformed) significantly
+influence runoff ratio, explaining approximately 52.06% of the
+variability in runoff ratio. An increase in aridity is associated with a
+decrease in runoff ratio (p \< 0.001), while an increase in
+precipitation is linked to an increase in runoff ratio (p \< 0.001).
+Additionally, there is suggestive evidence (p = 0.0635) of an
+interaction effect between aridity and precipitation on runoff ratio,
+implying that the relationship between precipitation and runoff ratio
+may vary with aridity levels.
+
+## Build a CART model to predict flow.
+
+Linear models help us both predict and understand drivers of change,
+machine learning can help us understand drivers of change, but as a
+technique it is more suited to accurate predictions. CART or
+Classification and Regression Trees are a nice intermediate between lms
+and ml. Tons of resources for this but [CART
+Logic](https://koalaverse.github.io/machine-learning-in-R/decision-trees.html#cart-software-in-r),
+provides a good conceptual overview, and [CART
+demo](https://www.statmethods.net/advstats/cart.html) provides a good
+enough code demo.
+
+Read the logic intro above, and the code demo as well, to build a CART
+model version of your lm. Use the code to visualize your CART output.
+
+```{r}
+set.seed(2378)
+runoff_4 <- runoff_ratio_logs %>%
+  select(runoff_ratio10, p_log10, aridlog10, soil_depth_pelletier, soil_porosity, frac_snow, pet_mean) %>%
+  mutate(runoff_class = cut_number(runoff_ratio10,n = 4)) %>%
+  select(-runoff_ratio10)%>%
+  na.omit()
+
+train <- runoff_4 %>%
+  sample_frac(.7)
+
+test <- runoff_4 %>%
+  anti_join(train)
+
+cart_simple <- rpart(runoff_class ~., data = train, cp = 0.001,
+                     method = 'class')
+
+
+plot(cart_simple)
+text(cart_simple, cex = 0.8, use.n = TRUE, xpd = TRUE)
+
+
+test$pred <- predict(cart_simple, test, 'class')
+cm <- conf_mat(test, runoff_class,pred)
+
+autoplot(cm, type = "heatmap") +
+  scale_fill_gradient(low="#D6EAF8",high = "#2E86C1")
+
+accuracy(test,runoff_class,pred)
+```
+
+## Build a RandomForest
+
+CARTs are a single tree, what if we had thousands? Would we get better
+performance (yes!)
+
+The same CART logic site above introduces random forests as well. Please
+read this part of the site and use the code demo to build your own
+RandomForest. Remember, for a RandomForest type model we want to make
+sure we split our data at least into train and test datasets and ideally
+into train-test-val.
+
+```{r}
+rf_class <- randomForest(runoff_class ~ ., data = train, 
+                         #maxnodes = 15,
+                         nPerm = 6,
+                         mtry = 5,
+                         importance = T)
+
+test$rf_pred <- predict(rf_class, test)
+
+cm_rf <- conf_mat(test, runoff_class, rf_pred)
+
+autoplot(cm_rf, type = "heatmap")+
+  scale_fill_gradient(low = "#D6EAF8",high = "#2E86C1")
+
+accuracy(test, runoff_class, rf_pred)
+```
+
+###  Continuous pred
+
+```{r}
+
+runoff_rf <- runoff_ratio_logs %>%
+  select(runoff_ratio10, p_log10, aridlog10, soil_depth_pelletier) %>%
+  na.omit()
+
+train_cont <- runoff_rf %>%
+  sample_frac(.7)
+
+test_cont <- runoff_rf %>%
+  anti_join(train)
+
+
+rf_numer <- randomForest(runoff_ratio10 ~ ., data = train_cont, 
+                         maxnodes = 50, 
+                         nPerm = 5,
+                         mtry = 3,
+                         importance = T)
+
+rf_numer$importance
+
+test_cont$rf_pred <- predict(rf_numer, test_cont)
+train_cont$rf_pred <- predict(rf_numer, train_cont)
+
+
+ggplot(test_cont, aes(x = runoff_ratio10,
+                      y = rf_pred)) + 
+  geom_point() + 
+  geom_abline(slope = 1)
+
+
+cor(test_cont$rf_pred,test_cont$runoff_ratio10)^2
+cor(train_cont$rf_pred,train_cont$runoff_ratio10)^2
+```
