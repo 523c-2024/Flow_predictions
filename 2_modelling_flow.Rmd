@@ -7,7 +7,13 @@ output: html_document
 
 ```{r setup, include=FALSE}
 
+install.packages('rpart.plot')
+install.packages('yardstick')
 library(tidyverse)
+library(rpart)
+library(rpart.plot)
+library(yardstick)
+library(randomForest)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
@@ -18,52 +24,249 @@ characteristics and potential drivers of those characteristics (climate,
 soils, etc...), we can start to build out increasingly complex models
 to predict flow characteristics. 
 
-# Assignment
 
 
 ## Build a parsimonious linear model
 
-Pick one of the flow characteristics that mosts interests you and use the `lm`
-function to build a parsimonious model that predicts your favorite characteristic. What is parsimony? It's a model that is complex enough to
-capture the major controls, but simple enough to be understandable. You
-will need to explore, read, understand the differences between a + sign interaction, a ":" interaction and a * interaction in `lm` terminology. 
 
-Please report your R2, slope estimates, and p-value of your model and 
-write out your interpretation of these numbers. 
 
 ```{r}
+
+q_mean <- read_delim('data/hydro.txt', delim = ';') %>%
+  select(gauge_id, q_mean) %>%
+  inner_join(read_delim('data/climate.txt', delim = ';')) %>%
+  inner_join(read_delim('data/soil.txt',delim = ';'))
+
+
+q_mean_logs <- q_mean %>%
+  mutate(p_log10 = log10(p_mean),
+         aridlog10 = log10(aridity),
+         q_mean10 = log10(q_mean))
+
+naive_mod <- lm(q_mean10 ~ aridlog10 * p_log10, data = q_mean_logs)
+
+summary(naive_mod)
+
+
+```
+
+
+## Build a CART model to predict flow. 
+ 
+
+```{r}
+set.seed(22157)
+q_4 <- q_mean_logs %>%
+  select(q_mean10, p_log10, aridlog10, soil_depth_pelletier, max_water_content, organic_frac, frac_snow,pet_mean) %>%
+  mutate(q_class = cut_number(q_mean10,n = 4)) %>%
+  select(-q_mean10) %>%
+  na.omit()
+
+train <- q_4 %>%
+  sample_frac(.7)
+
+test <- q_4 %>%
+  anti_join(train)
+
+cart_simple <- rpart(q_class ~., data = train, cp = 0.01,
+                     method = 'class')
+
+
+plot(cart_simple)
+text(cart_simple, cex = 0.8, use.n = TRUE, xpd = TRUE)
+
+
+test$pred <- predict(cart_simple, test, 'class')
+cm <- conf_mat(test, q_class,pred)
+
+autoplot(cm, type = "heatmap") +
+  scale_fill_gradient(low="#D6EAF8",high = "#2E86C1")
+
+accuracy(test,q_class,pred)
+```
+
+
+## Build a RandomForest
+
+
+
+### Classification Forest
+
+```{r}
+
+summary(train)
+rf_class <- randomForest(q_class ~ ., data = train, 
+                         maxnodes = 9, 
+                         nPerm = 2,
+                         mtry = 5,
+                         importance = T)
+
+test$rf_pred <- predict(rf_class, test)
+
+cm_rf <- conf_mat(test, q_class,rf_pred)
+
+autoplot(cm_rf, type = "heatmap") +
+  scale_fill_gradient(low="#D6EAF8",high = "#2E86C1")
+
+accuracy(test,q_class,rf_pred)
+
+```
+
+### Continuous pred
+
+```{r}
+q_rf <- q_mean_logs %>%
+  select(q_mean10, p_log10, aridlog10, soil_depth_pelletier,  frac_snow,pet_mean) %>%
+  na.omit()
+
+train_cont <- q_rf %>%
+  sample_frac(.7)
+
+test_cont <- q_rf %>%
+  anti_join(train)
+
+
+rf_numer <- randomForest(q_mean10 ~ ., data = train_cont, 
+                         maxnodes = 50, 
+                         nPerm = 5,
+                         mtry = 8,
+                         importance = T)
+
+rf_numer$importance
+
+test_cont$rf_pred <- predict(rf_numer, test_cont)
+train_cont$rf_pred <- predict(rf_numer, train_cont)
+
+
+ggplot(test_cont, aes(x = q_mean10,
+                      y = rf_pred)) + 
+  geom_point() + 
+  geom_abline(slope = 1)
+
+
+cor(test_cont$rf_pred,test_cont$q_mean10)^2
+cor(train_cont$rf_pred,train_cont$q_mean10)^2
+
+```
+
+
+##Assignment
+
+
+```{r}
+
+runoff_ratio <- read_delim('data/hydro.txt', delim = ';') %>%
+  select(gauge_id, runoff_ratio) %>%
+  inner_join(read_delim('data/climate.txt', delim = ';')) %>%
+  inner_join(read_delim('data/soil.txt',delim = ';'))
+
+
+runoff_ratio_logs <- runoff_ratio %>%
+  mutate(p_log10 = log10(p_mean),
+         aridlog10 = log10(aridity),
+         runoff_ratio_10 = log10(runoff_ratio))
+
+runoff_ratio_mod <- lm(runoff_ratio_10 ~ aridlog10 * p_log10, data = runoff_ratio_logs)
+
+
+summary(runoff_ratio_mod)
 
 ```
 
 
 ## Build a CART model to predict flow. 
 
-Linear models help us both predict and understand drivers of change, machine learning can help us understand drivers of change, but as a technique it is 
-more suited to accurate predictions. CART or Classification and Regression Trees
-are a nice intermediate between lms and ml. Tons of resources for this but
-[CART Logic](https://koalaverse.github.io/machine-learning-in-R/decision-trees.html#cart-software-in-r), provides a good conceptual overview, and [CART demo](https://www.statmethods.net/advstats/cart.html) provides a good enough code demo. 
-
-Read the logic intro above, and the code demo as well, to build a CART model 
-version of your lm. Use the code to visualize your CART output. 
-
-```{r}
-
-```
-
-
-## Build a RandomForest
-
-CARTs are a single tree, what if we had thousands? Would we get better performance (yes!)
-
-The same CART logic site above introduces random forests as well. Please 
-read this part of the site and use the code demo to build your own RandomForest.
-Remember, for a RandomForest type model we want to make sure we split our data
-at least into train and test datasets and ideally into train-test-val. 
-
-
 
 
 ```{r}
+set.seed(22157)
+runoff_ratio_4 <- runoff_ratio_logs %>%
+  select(runoff_ratio_10, p_log10, aridlog10, soil_depth_pelletier, max_water_content, organic_frac, frac_snow,pet_mean) %>%
+  mutate(runoff_ratio_class = cut_number(runoff_ratio_10,n = 4)) %>%
+  select(-runoff_ratio_10) %>%
+  na.omit()
+
+train <- runoff_ratio_4 %>%
+  sample_frac(.7)
+
+test <- runoff_ratio_4 %>%
+  anti_join(train)
+
+cart_simple <- rpart(runoff_ratio_class ~., data = train, cp = 0.01,
+                     method = 'class')
+
+
+plot(cart_simple)
+text(cart_simple, cex = 0.8, use.n = TRUE, xpd = TRUE)
+
+
+test$pred <- predict(cart_simple, test, 'class')
+cm <- conf_mat(test, runoff_ratio_class,pred)
+
+autoplot(cm, type = "heatmap") +
+  scale_fill_gradient(low="#D6EAF8",high = "#2E86C1")
+
+accuracy(test,runoff_ratio_class,pred)
+```
+
+
+
+
+### Classification Forest
+
+```{r}
+
+summary(train)
+rf_class <- randomForest(runoff_ratio_class ~ ., data = train, 
+                         maxnodes = 9, 
+                         nPerm = 2,
+                         mtry = 5,
+                         importance = T)
+
+test$rf_pred <- predict(rf_class, test)
+
+cm_rf <- conf_mat(test, runoff_ratio_class,rf_pred)
+
+autoplot(cm_rf, type = "heatmap") +
+  scale_fill_gradient(low="#D6EAF8",high = "#2E86C1")
+
+accuracy(test,runoff_ratio_class,rf_pred)
 
 ```
 
+### Continuous pred
+
+```{r}
+runoff_ratio_rf <- runoff_ratio_logs %>%
+  select(runoff_ratio_10, p_log10, aridlog10, soil_depth_pelletier,  frac_snow,pet_mean) %>%
+  na.omit()
+
+train_cont <- runoff_ratio_rf %>%
+  sample_frac(.7)
+
+test_cont <- runoff_ratio_rf %>%
+  anti_join(train)
+
+
+rf_numer <- randomForest(runoff_ratio_10 ~ ., data = train_cont, 
+                         maxnodes = 50, 
+                         nPerm = 5,
+                         mtry = 8,
+                         importance = T)
+
+rf_numer$importance
+
+test_cont$rf_pred <- predict(rf_numer, test_cont)
+train_cont$rf_pred <- predict(rf_numer, train_cont)
+
+
+ggplot(test_cont, aes(x = runoff_ratio_10,
+                      y = rf_pred)) + 
+  geom_point() + 
+  geom_abline(slope = 1)
+
+
+cor(test_cont$rf_pred,test_cont$runoff_ratio_10)^2
+cor(train_cont$rf_pred,train_cont$runoff_ratio_10)^2
+
+```

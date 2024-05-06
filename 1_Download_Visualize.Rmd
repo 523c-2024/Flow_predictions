@@ -10,15 +10,12 @@ library(tidyverse)
 library(GGally)
 
 knitr::opts_chunk$set(echo = TRUE)
+library(GGally)
 ```
-
 
 # Data Acquisition
 
-For this assignment we are going to be playing with annually
-aggregated metrics of USGS flow data from the [CAMELS](https://ral.ucar.edu/solutions/products/camels) dataset. This dataset
-has sparked a revolution in machine learning in hydrology. 
-
+For this assignment we are going to be playing with annually aggregated metrics of USGS flow data from the [CAMELS](https://ral.ucar.edu/solutions/products/camels) dataset. This dataset has sparked a revolution in machine learning in hydrology.
 
 ```{r}
 if(!file.exists('data')){
@@ -60,9 +57,7 @@ download.file('https://gdex.ucar.edu/dataset/camels/file/camels_attributes_v2.0.
 
 ```
 
-
 ## Data org
-
 
 ```{r}
 dat_files <- list.files('data',
@@ -73,30 +68,48 @@ dat_files <- list.files('data',
 climate <- read_delim(dat_files[1], delim = ';')
 
 hydro <- read_delim('data/hydro.txt', delim = ';')
+
+soil <- read_delim('data/soil.txt', delim = ';')
+
+geol <- read_delim('data/geol.txt', delim = ';')
 ```
 
 ## Initial data viz
 
-
-### Baseflow 
-
+### Baseflow
 
 ```{r}
 
-ggplot(hydro, aes(x = baseflow_index,
-                  y = q95)) + 
+#hydroclimate
+climate_q <- inner_join(climate, hydro %>%
+                          select(gauge_id, q95))
+#baseflow 
+ggplot(hydro, aes(x=baseflow_index, y=q95))+
   geom_point()
 
 
+ggplot(climate_q, aes(x=p_mean, y=q95))+
+  geom_point()+
+  geom_smooth(method = "lm", se=F)
+
+p_mean_mod <- lm(q95~p_mean, data=climate_q)
+summary(p_mean_mod)
 ```
 
+\*r\^2 \> 0.3
 
-Baseflow doesn't strongly control Q95 in a predictable way. 
+correlation ^2^ = r\^2
 
+```{r}
 
+ggplot(hydro, aes(x = baseflow_index,y = q95)) + 
+  geom_point()
+
+```
+
+Baseflow doesn't strongly control Q95 in a predictable way.
 
 ### Climate controls
-
 
 ```{r}
 
@@ -112,7 +125,6 @@ ggplot(cq, aes(x = p_mean, y = q95)) +
 p_mean_mod <- lm(q95 ~ p_mean, data = cq)
 
 ```
-
 
 #### All at once
 
@@ -138,17 +150,137 @@ ggplot(long_cq, aes(value,
              scales = 'free')
 ```
 
-The average precip (p_mean) controls 71% of the variation in 195, where every 1 mm/day increase in long-term average precip increases the q95 by 2.95 mm/day. 
+The average precip (p_mean) controls 71% of the variation in 195, where every 1 mm/day increase in long-term average precip increases the q95 by 2.95 mm/day.
 
 
 # Assignment
 
 ## What are three controls on average runoff ratio? 
 
+```{r}
+# Create a new data frame by joining climate and hydro data for analyzing runoff ratio
+rr_data <- inner_join(climate, hydro %>%
+  select(gauge_id, runoff_ratio))
+
+# Plot relationships between variables and runoff ratio
+png(filename = 'big_rr_plot.png', width = 10, height = 8, units = 'in', res = 300)
+rr_data %>%
+  select_if(is.numeric) %>%
+  ggpairs()
+dev.off()
+
+# Plot relationships between different variables and runoff ratio
+ggplot(rr_data, aes(x = some_variable1, y = runoff_ratio)) + 
+  geom_point() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Relationship between Some Variable 1 and Runoff Ratio")
+
+ggplot(rr_data, aes(x = some_variable2, y = runoff_ratio)) + 
+  geom_point() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Relationship between Some Variable 2 and Runoff Ratio")
+
+ggplot(rr_data, aes(x = some_variable3, y = runoff_ratio)) + 
+  geom_point() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Relationship between Some Variable 3 and Runoff Ratio")
+
+# Model relationships and get summaries
+p_mean_rr_mod <- lm(runoff_ratio ~ p_mean, data = rr_data)
+summary(p_mean_rr_mod)
+
+high_prec_rr_mod <- lm(runoff_ratio ~ high_prec_freq, data = rr_data)
+summary(high_prec_rr_mod)
+
+low_prec_rr_mod <- lm(runoff_ratio ~ low_prec_freq, data = rr_data)
+summary(low_prec_rr_mod)
+
+```
+p_mean, high precipitation frequency and low precipitation frequency all have significant p value that they control avg runoff. 
+
 ## What are three controls on baseflow_index? 
 
+```{r}
+# Create a new data frame by joining climate and hydro data for analyzing baseflow index
+bf_data <- inner_join(climate, hydro %>%
+  select(gauge_id, baseflow_index))
+
+# Plot relationships between variables and baseflow index
+png(filename = 'big_bf_plot.png', width = 10, height = 8, units = 'in', res = 300)
+bf_data %>%
+  select_if(is.numeric) %>%
+  ggpairs()
+dev.off()
+
+# Plot relationships between different variables and baseflow index
+ggplot(bf_data, aes(x = some_variable1, y = baseflow_index)) + 
+  geom_point() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Relationship between Some Variable 1 and Baseflow Index")
+
+ggplot(bf_data, aes(x = some_variable2, y = baseflow_index)) + 
+  geom_point() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Relationship between Some Variable 2 and Baseflow Index")
+
+ggplot(bf_data, aes(x = some_variable3, y = baseflow_index)) + 
+  geom_point() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Relationship between Some Variable 3 and Baseflow Index")
+
+# Model relationships and get summaries
+frac_snow_bf_mod <- lm(baseflow_index ~ frac_snow, data = bf_data)
+summary(frac_snow_bf_mod)
+        
+high_prec_freq_bf_mod <- lm(baseflow_index ~ high_prec_freq, data = bf_data)
+summary(high_prec_freq_bf_mod)
+
+low_prec_freq_bf_mod <- lm(baseflow_index ~ low_prec_freq, data = bf_data)
+summary(low_prec_freq_bf_mod)
+
+```
+
+precip as snow, high precipitation frequency, and low precipitation frequency all have significant p value that they control baseflow index. 
 ## What are three controls on mean flow? 
 
+```{r}
 
+# Create a new data frame by joining climate and hydro data for analyzing mean flow
+flow_data <- inner_join(climate, hydro %>%
+  select(gauge_id, q_mean))
 
+# Plot relationships between variables and mean flow
+png(filename = 'big_mean_flow_plot.png', width = 10, height = 8, units = 'in', res = 300)
+flow_data %>%
+  select_if(is.numeric) %>%
+  ggpairs()
+dev.off()
 
+# Plot relationships between different variables and mean flow
+ggplot(flow_data, aes(x = some_variable1, y = q_mean)) + 
+  geom_point() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Relationship between Some Variable 1 and Mean Flow")
+
+ggplot(flow_data, aes(x = some_variable2, y = q_mean)) + 
+  geom_point() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Relationship between Some Variable 2 and Mean Flow")
+
+ggplot(flow_data, aes(x = some_variable3, y = q_mean)) + 
+  geom_point() + 
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Relationship between Some Variable 3 and Mean Flow")
+
+# Model relationships and get summaries
+p_mean_q_mod <- lm(q_mean ~ p_mean, data = flow_data)
+summary(p_mean_q_mod)
+        
+aridity_q_mod <- lm(q_mean ~ aridity, data = flow_data)
+summary(aridity_q_mod)
+
+low_prec_dur_q_mod <- lm(q_mean ~ low_prec_dur, data = flow_data)
+summary(low_prec_dur_q_mod)
+```
+
+Fraction of mean precipitation, aridity, and low precipitation duration all have significant p value that they control mean flow.
